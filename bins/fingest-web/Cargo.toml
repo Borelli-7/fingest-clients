@@ -1,0 +1,14 @@
+[package]
+name = "fingest-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Thin binary. Everything it knows, it learned from fingest-web-bootstrap."
+
+[dependencies]
+fingest-web-bootstrap = { path = "../../crates/fingest-web-bootstrap" }
+dioxus = { workspace = true, features = ["web", "router"] }
+
+[lints]
+workspace = true

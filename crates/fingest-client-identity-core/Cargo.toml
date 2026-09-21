@@ -1,0 +1,25 @@
+[package]
+name = "fingest-client-identity-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Authentication and session use cases. Pure — drives ports, knows no transport."
+
+# Dependency rule: interior of the hexagon. No dioxus, reqwest, web-sys, gloo or tokio.
+# Enforced by fingest-web-ports/tests/dependency_rule.rs.
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+fingest-contracts = { workspace = true }
+async-trait = { workspace = true }
+
+[features]
+# Exposes the in-memory port doubles to other crates' tests.
+test-support = ["fingest-client-ports/test-support"]
+
+[dev-dependencies]
+fingest-client-ports = { path = "../fingest-client-ports", features = ["test-support"] }
+futures = { workspace = true }
+
+[lints]
+workspace = true

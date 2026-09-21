@@ -1,0 +1,21 @@
+[package]
+name = "fingest-web-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Browser adapters: session storage and the wall clock."
+
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+chrono = { workspace = true }
+gloo-storage = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+fingest-contracts = { workspace = true }
+wasm-bindgen-test = { workspace = true }
+
+[lints]
+workspace = true

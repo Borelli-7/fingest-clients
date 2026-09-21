@@ -1,0 +1,32 @@
+[package]
+name = "fingest-mobile-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Mobile adapters: platform-backed session storage and the wall clock."
+
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+chrono = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# The Keystore has no C ABI, so it is reached through JNI. Android-only so the same crate
+# still builds for the browser, where the screens are developed.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
+[dev-dependencies]
+fingest-contracts = { workspace = true }
+
+# The one crate that does not inherit the workspace's `unsafe_code = "forbid"`. Attaching
+# to the JVM and casting the activity pointer have no safe wrapper, so this crate downgrades
+# to `deny` and allows it at the two call sites in android.rs. Everything else still forbids.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

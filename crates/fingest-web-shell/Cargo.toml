@@ -1,0 +1,25 @@
+[package]
+name = "fingest-web-shell"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Inbound adapter: the user drives the application through these components."
+
+# The UI reaches adapters only through ports handed to it by the composition root. Declaring
+# fingest-web-http, -storage or -events here fails dependency_rule.rs.
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+fingest-client-view = { path = "../fingest-client-view" }
+fingest-client-identity-core = { path = "../fingest-client-identity-core" }
+fingest-client-catalog-core = { path = "../fingest-client-catalog-core" }
+fingest-client-wallets-core = { path = "../fingest-client-wallets-core" }
+fingest-client-planning-core = { path = "../fingest-client-planning-core" }
+fingest-client-modules = { path = "../fingest-client-modules" }
+fingest-contracts = { workspace = true }
+fingest-kernel = { workspace = true }
+dioxus = { workspace = true, features = ["router"] }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

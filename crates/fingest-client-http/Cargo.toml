@@ -1,0 +1,36 @@
+[package]
+name = "fingest-client-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Outbound HTTP adapter. The only crate that knows the API is reachable over the wire."
+
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+fingest-contracts = { workspace = true }
+fingest-kernel = { workspace = true }
+async-trait = { workspace = true }
+percent-encoding = "2.3"
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+# On wasm `reqwest` delegates to `fetch` and the browser owns TLS. Natively it does not, so
+# without this the mobile client could only ever reach an http:// API. rustls rather than
+# native-tls: OpenSSL would have to be cross-compiled for every Android ABI.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+
+[dev-dependencies]
+fingest-client-identity-core = { path = "../fingest-client-identity-core", features = [
+    "test-support",
+] }
+futures = { workspace = true }
+
+[lints]
+workspace = true

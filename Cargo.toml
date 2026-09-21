@@ -1,0 +1,53 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "bins/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+license = "MIT"
+
+[workspace.dependencies]
+# Reused verbatim from the API workspace, so a wire-shape change is a compile error here
+# rather than a runtime surprise. Both crates are pure Rust and compile to wasm32.
+# Pulled over git rather than by path: this repo stands alone, and a relative path would
+# only resolve on a machine that happens to have the API checked out as a sibling.
+# Cargo.lock pins the exact commit, so builds stay reproducible.
+fingest-contracts = { git = "https://github.com/Borelli-7/fingest-rs-v2.git", branch = "main" }
+fingest-kernel = { git = "https://github.com/Borelli-7/fingest-rs-v2.git", branch = "main" }
+
+# --- port-safe (pure): usable from any crate ---
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+bigdecimal = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+# `?Send` everywhere: wasm futures are single-threaded and not Send.
+async-trait = "0.1"
+futures = "0.3"
+
+# --- adapter-only: MUST NOT appear in any *-core, -ports or -modules crate ---
+dioxus = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+gloo-storage = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+wasm-bindgen-test = "0.3"
+web-sys = "0.3"
+js-sys = "0.3"
+tracing = "0.1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+
+# wasm has no unwinding; abort keeps the bundle smaller.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

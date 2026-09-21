@@ -1,0 +1,21 @@
+[package]
+name = "fingest-mobile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Thin binary. Everything it knows, it learned from fingest-mobile-bootstrap."
+
+[dependencies]
+fingest-mobile-bootstrap = { path = "../../crates/fingest-mobile-bootstrap" }
+dioxus = { workspace = true, features = ["router"] }
+
+[features]
+# `dx serve --android` / `--ios` enable this; it selects the webview renderer.
+mobile = ["dioxus/mobile"]
+# Lets the same screens be driven in a browser during development, which is the only way
+# to iterate on them without an emulator.
+web = ["dioxus/web"]
+
+[lints]
+workspace = true

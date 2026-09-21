@@ -1,0 +1,15 @@
+[package]
+name = "fingest-client-modules"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Feature-module registry and capability gate. Mirrors fingest-plugins server side."
+
+# Dependency rule: interior of the hexagon. No dioxus, reqwest, web-sys, gloo or tokio.
+[dependencies]
+fingest-contracts = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

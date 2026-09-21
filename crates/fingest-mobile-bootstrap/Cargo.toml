@@ -1,0 +1,26 @@
+[package]
+name = "fingest-mobile-bootstrap"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Mobile composition root. The only mobile crate that names both a port and its adapter."
+
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+fingest-client-identity-core = { path = "../fingest-client-identity-core" }
+fingest-client-catalog-core = { path = "../fingest-client-catalog-core" }
+fingest-client-wallets-core = { path = "../fingest-client-wallets-core" }
+fingest-client-planning-core = { path = "../fingest-client-planning-core" }
+fingest-client-modules = { path = "../fingest-client-modules" }
+fingest-client-view = { path = "../fingest-client-view" }
+fingest-client-http = { path = "../fingest-client-http" }
+fingest-client-events = { path = "../fingest-client-events" }
+fingest-mobile-storage = { path = "../fingest-mobile-storage" }
+fingest-mobile-shell = { path = "../fingest-mobile-shell" }
+fingest-contracts = { workspace = true }
+dioxus = { workspace = true, features = ["router"] }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "fingest-mobile-shell"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Mobile screens. Touch layout and navigation; every rule behind them is shared."
+
+# A shell may not name an adapter crate — it reaches them through ports handed to it by the
+# composition root. Enforced by fingest-client-ports/tests/dependency_rule.rs.
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+fingest-client-view = { path = "../fingest-client-view" }
+fingest-client-wallets-core = { path = "../fingest-client-wallets-core" }
+fingest-client-planning-core = { path = "../fingest-client-planning-core" }
+fingest-contracts = { workspace = true }
+fingest-kernel = { workspace = true }
+bigdecimal = { workspace = true }
+dioxus = { workspace = true, features = ["router"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,14 @@
+[package]
+name = "fingest-client-events"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Client-side event bus adapter. Fan-out to in-process subscribers."
+
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

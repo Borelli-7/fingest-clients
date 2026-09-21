@@ -1,0 +1,14 @@
+[application]
+name = "fingest-mobile-client"
+out_dir = "dist"
+
+[web.app]
+title = "FinGest"
+
+[web.watcher]
+reload_html = true
+watch_path = ["src", "../../crates"]
+
+[bundle]
+identifier = "dev.fingest.mobile"
+publisher = "FinGest"

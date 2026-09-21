@@ -1,0 +1,27 @@
+[package]
+name = "fingest-client-ports"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Port definitions. Traits only — no adapter, no framework, no I/O."
+
+# Dependency rule: this crate and every *-core crate MUST NOT depend on dioxus, reqwest,
+# web-sys or any other adapter technology. Enforced by tests/dependency_rule.rs.
+[dependencies]
+fingest-contracts = { workspace = true }
+fingest-kernel = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+# Exposes the in-memory doubles for the ports declared here.
+test-support = []
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

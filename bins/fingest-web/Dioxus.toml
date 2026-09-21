@@ -1,0 +1,16 @@
+[application]
+name = "fingest-web-shell"
+out_dir = "dist"
+
+[web.app]
+title = "FinGest"
+
+[web.watcher]
+reload_html = true
+# The UI and its ports live outside this crate, so a change there must still trigger a rebuild.
+watch_path = ["src", "../../crates"]
+
+# Same-origin alternative to CORS during development. Enable this and build with
+# FINGEST_API_BASE_URL="" if the browser starts refusing cross-origin calls.
+# [[web.proxy]]
+# backend = "http://localhost:8080/api/"

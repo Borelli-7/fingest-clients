@@ -1,0 +1,23 @@
+[package]
+name = "fingest-client-view"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Presentation logic every client shares: context, formatting and wording."
+
+# Depends on `dioxus` but on no renderer feature. Dioxus core is platform-agnostic; only
+# `dioxus/web` and `dioxus/mobile` are not, and those are chosen by a shell.
+[dependencies]
+fingest-client-ports = { path = "../fingest-client-ports" }
+fingest-client-identity-core = { path = "../fingest-client-identity-core" }
+fingest-client-catalog-core = { path = "../fingest-client-catalog-core" }
+fingest-client-wallets-core = { path = "../fingest-client-wallets-core" }
+fingest-client-planning-core = { path = "../fingest-client-planning-core" }
+fingest-client-modules = { path = "../fingest-client-modules" }
+fingest-contracts = { workspace = true }
+fingest-kernel = { workspace = true }
+dioxus = { workspace = true }
+
+[lints]
+workspace = true
