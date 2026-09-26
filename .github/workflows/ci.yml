@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+# The toolchain is pinned by rust-toolchain.toml; `rustup show` installs exactly that one.
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --locked --workspace --all-targets
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      # Includes crates/fingest-client-ports/tests/dependency_rule.rs.
+      - run: cargo test --locked --workspace
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --locked --target wasm32-unknown-unknown -p fingest-web -p fingest-web-storage
+
+  # android.rs is cfg(target_os = "android"), so a host build never compiles it.
+  # Checking needs only the target's std, not the NDK.
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show && rustup target add aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --locked --target aarch64-linux-android -p fingest-mobile-storage
