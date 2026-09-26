@@ -77,7 +77,17 @@ pub fn Budgets() -> Element {
 #[component]
 fn BudgetCard(budget: BudgetOutputDto) -> Element {
     let mut error = use_signal(|| None::<String>);
-    let budget_id = budget.id.unwrap_or_default();
+
+    let Some(budget_id) = budget.id else {
+        return rsx! {
+            li { class: "card",
+                div { class: "card-link",
+                    span { class: "card-title", "{budget.category.name}" }
+                    span { class: "card-value", "{format_money(&budget.left)} left" }
+                }
+            }
+        };
+    };
 
     let remove = move |_| {
         let context = app_context();

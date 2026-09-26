@@ -58,7 +58,7 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
                 p { class: "muted", "Balance {format_money(&wallet.amount)}" }
                 Link { to: Route::Wallets {}, "All wallets" }
 
-                ExpenseForm { wallet: wallet.clone() }
+                ExpenseForm { wallet_id, wallet: wallet.clone() }
                 ExpenseList { wallet_id }
                 Analytics { wallet_id }
             },
@@ -67,7 +67,7 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
 }
 
 #[component]
-fn ExpenseForm(wallet: WalletDto) -> Element {
+fn ExpenseForm(wallet_id: i32, wallet: WalletDto) -> Element {
     let context = app_context();
 
     let catalog = context.catalog.clone();
@@ -88,7 +88,6 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
 
     let wallet_currency = wallet.amount.currency.to_string();
     let wallet_balance = wallet.amount.clone();
-    let wallet_id = wallet.id.unwrap_or_default();
 
     let categories_state = picker(categories.read_unchecked().as_ref());
     let options = categories_state.options.clone();
@@ -269,7 +268,18 @@ fn ExpenseList(wallet_id: i32) -> Element {
 #[component]
 fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
     let mut error = use_signal(|| None::<String>);
-    let expense_id = expense.id.unwrap_or_default();
+
+    let Some(expense_id) = expense.id else {
+        return rsx! {
+            tr {
+                td { class: "muted", "{expense.date}" }
+                td { "{expense.description}" }
+                td { class: "muted", "{expense.category.name}" }
+                td { "{format_money(&expense.amount)}" }
+                td {}
+            }
+        };
+    };
 
     let remove = move |_| {
         let context = app_context();

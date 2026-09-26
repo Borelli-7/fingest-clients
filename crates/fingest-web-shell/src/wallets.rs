@@ -157,7 +157,16 @@ fn WalletRow(wallet: WalletDto) -> Element {
     let mut draft = use_signal(|| wallet.name.clone());
     let mut error = use_signal(|| None::<String>);
 
-    let wallet_id = wallet.id.unwrap_or_default();
+    // Without an id nothing on the server can be addressed, so nothing is offered.
+    let Some(wallet_id) = wallet.id else {
+        return rsx! {
+            tr {
+                td { "{wallet.name}" }
+                td { "{format_money(&wallet.amount)}" }
+                td {}
+            }
+        };
+    };
 
     let commit = move |event: FormEvent| {
         event.prevent_default();

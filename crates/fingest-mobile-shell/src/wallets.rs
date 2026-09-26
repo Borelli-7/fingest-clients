@@ -57,7 +57,17 @@ pub fn Wallets() -> Element {
 
 #[component]
 fn WalletCard(wallet: WalletDto) -> Element {
-    let wallet_id = wallet.id.unwrap_or_default();
+    // Without an id there is no detail screen to open.
+    let Some(wallet_id) = wallet.id else {
+        return rsx! {
+            li { class: "card",
+                div { class: "card-link",
+                    span { class: "card-title", "{wallet.name}" }
+                    span { class: "card-value", "{format_money(&wallet.amount)}" }
+                }
+            }
+        };
+    };
 
     rsx! {
         li { class: "card",
@@ -132,7 +142,7 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
                     },
                     "+"
                 }
-                EntrySheet { wallet: wallet.clone(), open: sheet_open }
+                EntrySheet { wallet_id, wallet: wallet.clone(), open: sheet_open }
             },
         }
     }
@@ -185,7 +195,18 @@ fn Entries(wallet_id: i32) -> Element {
 #[component]
 fn EntryRow(wallet_id: i32, expense: ExpenseDto) -> Element {
     let mut error = use_signal(|| None::<String>);
-    let expense_id = expense.id.unwrap_or_default();
+
+    let Some(expense_id) = expense.id else {
+        return rsx! {
+            li { class: "card",
+                div { class: "card-link",
+                    span { class: "card-title", "{expense.description}" }
+                    span { class: "card-value", "{format_money(&expense.amount)}" }
+                }
+                p { class: "muted small", "{expense.date} · {expense.category.name}" }
+            }
+        };
+    };
 
     let remove = move |_| {
         let context = app_context();
