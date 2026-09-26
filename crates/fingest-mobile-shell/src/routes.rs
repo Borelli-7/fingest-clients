@@ -1,8 +1,8 @@
 use dioxus::prelude::*;
 
 use crate::{
-    budgets::Budgets, categories::Categories, login::Login, tabs::Tabs, wallets::WalletDetail,
-    wallets::Wallets,
+    budgets::Budgets, categories::Categories, forecast::Forecast, login::Login, tabs::Tabs,
+    wallets::WalletDetail, wallets::Wallets,
 };
 
 /// Every screen the app answers.
@@ -25,6 +25,9 @@ pub enum Route {
 
         #[route("/budgets")]
         Budgets {},
+
+        #[route("/forecast")]
+        Forecast {},
 
         #[route("/categories")]
         Categories {},
