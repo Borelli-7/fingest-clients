@@ -41,7 +41,9 @@ pub fn Shell() -> Element {
             span { class: "brand", "FinGest" }
             nav {
                 for entry in entries {
-                    a { key: "{entry.path}", href: "{entry.path}", "{entry.label}" }
+                    if let Some(route) = Route::for_nav(entry.path) {
+                        Link { key: "{entry.path}", to: route, "{entry.label}" }
+                    }
                 }
             }
             span { class: "spacer" }

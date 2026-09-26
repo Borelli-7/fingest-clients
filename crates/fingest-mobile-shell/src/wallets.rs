@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::{ClientError, ClientEvent};
-use fingest_client_view::{app_context, describe, format_money, use_event_refresh};
+use fingest_client_view::{NOT_SIGNED_IN, app_context, describe, format_money, use_event_refresh};
 use fingest_contracts::{ExpenseDto, WalletDto};
 use fingest_kernel::DateRange;
 
@@ -85,9 +85,7 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
         let session = session_signal.read().clone();
         async move {
             let Some(session) = session else {
-                return Err(ClientError::Unauthenticated(
-                    "You are not signed in".to_owned(),
-                ));
+                return Err(ClientError::Unauthenticated(NOT_SIGNED_IN.to_owned()));
             };
             let login = session.login().to_owned();
             use_case.find(&session, &login, wallet_id).await

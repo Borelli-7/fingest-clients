@@ -60,19 +60,25 @@ The bump process, review checklist and validation commands are documented in
 ## Building
 
 ```bash
-cargo test --workspace          # 142 tests
+cargo test --workspace
 cargo clippy --workspace --all-targets
 
 # web
 cd bins/fingest-web && dx serve --web
 
-# android — needs ANDROID_NDK_HOME
-./scripts/build_android.sh release
+# android — needs ANDROID_NDK_HOME; release also needs ANDROID_HOME and a signing key
+FINGEST_KEYSTORE=... FINGEST_KEY_ALIAS=... FINGEST_KEYSTORE_PASS=... \
+  ./scripts/build_android.sh release
+./scripts/build_android.sh debug    # debuggable, development only
 ```
 
 `build_android.sh` runs two passes: `dx` generates the Gradle project, the script injects the
 `androidx.security:security-crypto` dependency the Keystore adapter needs, then Gradle assembles.
 `dx` regenerates that file each build, so the injection is re-applied every time.
+
+`release` runs `assembleRelease`, then zipaligns and signs the result with `apksigner` and refuses
+to finish if the APK is debuggable. R8 is on for release, so the script also writes keep rules for
+the classes Rust reaches only through JNI.
 
 The emulator needs `-gpu host`; a software renderer never paints. Point the app at the API with
 `adb reverse tcp:8080 tcp:8080` — `127.0.0.1` is the only host the generated

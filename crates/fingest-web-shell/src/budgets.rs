@@ -2,9 +2,9 @@ use dioxus::prelude::*;
 use fingest_client_planning_core::BudgetUseCase;
 use fingest_client_ports::{BudgetFilter, ClientError, ClientEvent};
 use fingest_client_view::{
-    app_context,
+    NOT_SIGNED_IN, app_context,
     category::{find_category, option_value, picker},
-    describe, format_money, use_event_refresh,
+    describe, format_money, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::parse_money;
 use fingest_contracts::BudgetOutputDto;
@@ -127,7 +127,7 @@ fn BudgetForm() -> Element {
     let mut start = use_signal(|| context.clock.today().to_string());
     let mut end = use_signal(|| context.clock.today().to_string());
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let categories_state = picker(categories.read_unchecked().as_ref());
     let options = categories_state.options.clone();
@@ -162,12 +162,15 @@ fn BudgetForm() -> Element {
             };
 
             let context = app_context();
-            spawn(async move {
-                busy.set(true);
-                error.set(None);
+            let Some(session) = context.session.read().clone() else {
+                error.set(Some(NOT_SIGNED_IN.to_owned()));
+                return;
+            };
+            error.set(None);
+            let busy_guard = hold(busy);
 
-                let session = context.session.read().clone();
-                let Some(session) = session else { return };
+            spawn(async move {
+                let _busy = busy_guard;
                 let login = session.login().to_owned();
 
                 let result = context
@@ -179,8 +182,6 @@ fn BudgetForm() -> Element {
                     Ok(_) => total.set(String::new()),
                     Err(failure) => error.set(Some(describe(&failure))),
                 }
-
-                busy.set(false);
             });
         }
     };

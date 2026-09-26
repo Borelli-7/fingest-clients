@@ -1,9 +1,9 @@
 use dioxus::prelude::*;
 use fingest_client_ports::{ClientError, ClientEvent};
 use fingest_client_view::{
-    app_context,
+    NOT_SIGNED_IN, app_context,
     category::{find_category, option_value, picker},
-    describe, format_money, use_event_refresh,
+    describe, format_money, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
 use fingest_contracts::{ExpenseDto, WalletDto};
@@ -23,9 +23,7 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
         let session = session_signal.read().clone();
         async move {
             let Some(session) = session else {
-                return Err(ClientError::Unauthenticated(
-                    "You are not signed in".to_owned(),
-                ));
+                return Err(ClientError::Unauthenticated(NOT_SIGNED_IN.to_owned()));
             };
             let login = session.login().to_owned();
             use_case.find(&session, &login, wallet_id).await
@@ -86,7 +84,7 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
     let mut date = use_signal(|| context.clock.today().to_string());
     let mut selected = use_signal(String::new);
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let wallet_currency = wallet.amount.currency.to_string();
     let wallet_balance = wallet.amount.clone();
@@ -114,7 +112,7 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
             let money = match parse_money(&amount(), &wallet_currency) {
                 Ok(money) => money,
                 Err(failure) => {
-                    error.set(Some(failure.message().to_owned()));
+                    error.set(Some(describe(&failure)));
                     return;
                 }
             };
@@ -126,12 +124,15 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
 
             let balance = wallet_balance.clone();
             let context = app_context();
-            spawn(async move {
-                busy.set(true);
-                error.set(None);
+            let Some(session) = context.session.read().clone() else {
+                error.set(Some(NOT_SIGNED_IN.to_owned()));
+                return;
+            };
+            error.set(None);
+            let busy_guard = hold(busy);
 
-                let session = context.session.read().clone();
-                let Some(session) = session else { return };
+            spawn(async move {
+                let _busy = busy_guard;
                 let login = session.login().to_owned();
 
                 let result = context
@@ -155,10 +156,8 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
                         amount.set(String::new());
                         description.set(String::new());
                     }
-                    Err(failure) => error.set(Some(failure.message().to_owned())),
+                    Err(failure) => error.set(Some(describe(&failure))),
                 }
-
-                busy.set(false);
             });
         }
     };
@@ -240,7 +239,7 @@ fn ExpenseList(wallet_id: i32) -> Element {
         match &*expenses.read_unchecked() {
             None => rsx! { p { class: "muted", "Loading…" } },
             Some(Err(error)) => rsx! {
-                p { class: "error", role: "alert", "{error.message()}" }
+                p { class: "error", role: "alert", "{describe(error)}" }
             },
             Some(Ok(list)) if list.is_empty() => rsx! {
                 p { class: "muted", "Nothing recorded yet." }
@@ -286,7 +285,7 @@ fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
                 .delete_expense(&session, &login, wallet_id, expense_id)
                 .await
             {
-                error.set(Some(failure.message().to_owned()));
+                error.set(Some(describe(&failure)));
             }
         });
     };
@@ -325,9 +324,7 @@ fn Analytics(wallet_id: i32) -> Element {
         let session = session_signal.read().clone();
         async move {
             let Some(session) = session else {
-                return Err(ClientError::Unauthenticated(
-                    "You are not signed in".to_owned(),
-                ));
+                return Err(ClientError::Unauthenticated(NOT_SIGNED_IN.to_owned()));
             };
             let login = session.login().to_owned();
             let range = DateRange::new(None, None);
