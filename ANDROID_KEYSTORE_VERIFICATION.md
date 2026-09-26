@@ -30,7 +30,7 @@ adb reverse tcp:8080 tcp:8080
    - `adb shell am force-stop com.dioxuslabs.fingestmobile`
 4. Relaunch app.
 5. Verify the app restores the authenticated state without re-entering credentials.
-6. Log out from the app.
+6. Tap **Sign out** in the tab bar.
 7. Force-stop again:
    - `adb shell am force-stop com.dioxuslabs.fingestmobile`
 8. Relaunch app.
