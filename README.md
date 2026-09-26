@@ -60,19 +60,25 @@ The bump process, review checklist and validation commands are documented in
 ## Building
 
 ```bash
-cargo test --workspace          # 142 tests
+cargo test --workspace
 cargo clippy --workspace --all-targets
 
 # web
 cd bins/fingest-web && dx serve --web
 
-# android — needs ANDROID_NDK_HOME
-./scripts/build_android.sh release
+# android — needs ANDROID_NDK_HOME; release also needs ANDROID_HOME and a signing key
+FINGEST_KEYSTORE=... FINGEST_KEY_ALIAS=... FINGEST_KEYSTORE_PASS=... \
+  ./scripts/build_android.sh release
+./scripts/build_android.sh debug    # debuggable, development only
 ```
 
 `build_android.sh` runs two passes: `dx` generates the Gradle project, the script injects the
 `androidx.security:security-crypto` dependency the Keystore adapter needs, then Gradle assembles.
 `dx` regenerates that file each build, so the injection is re-applied every time.
+
+`release` runs `assembleRelease`, then zipaligns and signs the result with `apksigner` and refuses
+to finish if the APK is debuggable. R8 is on for release, so the script also writes keep rules for
+the classes Rust reaches only through JNI.
 
 The emulator needs `-gpu host`; a software renderer never paints. Point the app at the API with
 `adb reverse tcp:8080 tcp:8080` — `127.0.0.1` is the only host the generated
@@ -88,5 +94,8 @@ clients.
 
 Android Keystore restart verification is documented in `ANDROID_KEYSTORE_VERIFICATION.md`.
 
-The capability gate now exercises a real module path: `forecast` is registered as gated by
-`budget-forecast` and appears in navigation only when the capability is reported.
+The capability gate guards one real module: **Forecast**, gated by `budget-forecast`. It projects
+each running budget to the end of its period at the current pace
+(`fingest_client_planning_core::project`). No plugin shipped with `fingest-rs-v2` declares
+`budget-forecast` yet, so against a default API the module stays hidden. That is the gate
+failing closed, not a bug. Showing it needs a server plugin that declares the capability.

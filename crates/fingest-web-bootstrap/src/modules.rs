@@ -95,4 +95,29 @@ mod tests {
         assert!(entries.iter().any(|entry| entry.path == "/forecast"));
         assert!(registry.is_enabled("forecast", &capabilities(&["budget-forecast"])));
     }
+
+    /// The nav renders only entries that resolve, so an unresolvable one would silently
+    /// vanish from the bar. This makes it a test failure instead.
+    #[test]
+    fn every_nav_entry_targets_a_screen() {
+        use fingest_web_shell::Route;
+
+        let entries = module_registry()
+            .unwrap()
+            .nav(&capabilities(&["budget-forecast"]));
+
+        assert!(!entries.is_empty());
+        for entry in entries {
+            assert!(
+                Route::for_nav(entry.path).is_some(),
+                "nav entry {} has no screen",
+                entry.path
+            );
+        }
+    }
+
+    #[test]
+    fn a_path_with_no_screen_does_not_resolve() {
+        assert!(fingest_web_shell::Route::for_nav("/nowhere").is_none());
+    }
 }

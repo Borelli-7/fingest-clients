@@ -7,6 +7,10 @@
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 
+pub mod forecast;
+
+pub use forecast::{Projection, project};
+
 use std::rc::Rc;
 
 use fingest_client_ports::{

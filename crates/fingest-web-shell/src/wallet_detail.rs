@@ -1,9 +1,9 @@
 use dioxus::prelude::*;
-use fingest_client_ports::ClientEvent;
+use fingest_client_ports::{ClientError, ClientEvent};
 use fingest_client_view::{
-    app_context,
-    category::{find_category, option_value},
-    format_money, use_event_refresh,
+    NOT_SIGNED_IN, app_context,
+    category::{find_category, option_value, picker},
+    describe, format_money, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
 use fingest_contracts::{ExpenseDto, WalletDto};
@@ -22,14 +22,11 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
         let use_case = wallets_use_case.clone();
         let session = session_signal.read().clone();
         async move {
-            let session = session?;
+            let Some(session) = session else {
+                return Err(ClientError::Unauthenticated(NOT_SIGNED_IN.to_owned()));
+            };
             let login = session.login().to_owned();
-            use_case
-                .list(&session, &login)
-                .await
-                .ok()?
-                .into_iter()
-                .find(|w| w.id == Some(wallet_id))
+            use_case.find(&session, &login, wallet_id).await
         }
     });
 
@@ -40,19 +37,28 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
         )
     });
 
-    let current = wallet.read_unchecked().clone().flatten();
+    let current = wallet.read_unchecked().clone();
 
     rsx! {
         match current {
             None => rsx! {
                 p { class: "muted", "Loading…" }
             },
-            Some(wallet) => rsx! {
+            Some(Err(error)) => rsx! {
+                p { class: "error", role: "alert", "{describe(&error)}" }
+                Link { to: Route::Wallets {}, "All wallets" }
+            },
+            Some(Ok(None)) => rsx! {
+                h1 { "Wallet not found" }
+                p { class: "muted", "It may have been deleted." }
+                Link { to: Route::Wallets {}, "All wallets" }
+            },
+            Some(Ok(Some(wallet))) => rsx! {
                 h1 { "{wallet.name}" }
                 p { class: "muted", "Balance {format_money(&wallet.amount)}" }
                 Link { to: Route::Wallets {}, "All wallets" }
 
-                ExpenseForm { wallet: wallet.clone() }
+                ExpenseForm { wallet_id, wallet: wallet.clone() }
                 ExpenseList { wallet_id }
                 Analytics { wallet_id }
             },
@@ -61,13 +67,13 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
 }
 
 #[component]
-fn ExpenseForm(wallet: WalletDto) -> Element {
+fn ExpenseForm(wallet_id: i32, wallet: WalletDto) -> Element {
     let context = app_context();
 
     let catalog = context.catalog.clone();
     let categories = use_resource(move || {
         let catalog = catalog.clone();
-        async move { catalog.list().await.unwrap_or_default() }
+        async move { catalog.list().await }
     });
     use_event_refresh(categories, |event| {
         matches!(event, ClientEvent::CategoryChanged)
@@ -78,13 +84,13 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
     let mut date = use_signal(|| context.clock.today().to_string());
     let mut selected = use_signal(String::new);
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let wallet_currency = wallet.amount.currency.to_string();
     let wallet_balance = wallet.amount.clone();
-    let wallet_id = wallet.id.unwrap_or_default();
 
-    let options = categories.read_unchecked().clone().unwrap_or_default();
+    let categories_state = picker(categories.read_unchecked().as_ref());
+    let options = categories_state.options.clone();
 
     let submit = {
         let options = options.clone();
@@ -105,7 +111,7 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
             let money = match parse_money(&amount(), &wallet_currency) {
                 Ok(money) => money,
                 Err(failure) => {
-                    error.set(Some(failure.message().to_owned()));
+                    error.set(Some(describe(&failure)));
                     return;
                 }
             };
@@ -117,12 +123,15 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
 
             let balance = wallet_balance.clone();
             let context = app_context();
-            spawn(async move {
-                busy.set(true);
-                error.set(None);
+            let Some(session) = context.session.read().clone() else {
+                error.set(Some(NOT_SIGNED_IN.to_owned()));
+                return;
+            };
+            error.set(None);
+            let busy_guard = hold(busy);
 
-                let session = context.session.read().clone();
-                let Some(session) = session else { return };
+            spawn(async move {
+                let _busy = busy_guard;
                 let login = session.login().to_owned();
 
                 let result = context
@@ -146,10 +155,8 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
                         amount.set(String::new());
                         description.set(String::new());
                     }
-                    Err(failure) => error.set(Some(failure.message().to_owned())),
+                    Err(failure) => error.set(Some(describe(&failure))),
                 }
-
-                busy.set(false);
             });
         }
     };
@@ -191,7 +198,10 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
                     }
                 }
             }
-            button { r#type: "submit", disabled: busy(), "Record" }
+            button { r#type: "submit", disabled: busy() || !categories_state.ready, "Record" }
+        }
+        if let Some(message) = categories_state.error {
+            p { class: "error", role: "alert", "{message}" }
         }
         if let Some(message) = error() {
             p { class: "error", role: "alert", "{message}" }
@@ -228,7 +238,7 @@ fn ExpenseList(wallet_id: i32) -> Element {
         match &*expenses.read_unchecked() {
             None => rsx! { p { class: "muted", "Loading…" } },
             Some(Err(error)) => rsx! {
-                p { class: "error", role: "alert", "{error.message()}" }
+                p { class: "error", role: "alert", "{describe(error)}" }
             },
             Some(Ok(list)) if list.is_empty() => rsx! {
                 p { class: "muted", "Nothing recorded yet." }
@@ -258,7 +268,18 @@ fn ExpenseList(wallet_id: i32) -> Element {
 #[component]
 fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
     let mut error = use_signal(|| None::<String>);
-    let expense_id = expense.id.unwrap_or_default();
+
+    let Some(expense_id) = expense.id else {
+        return rsx! {
+            tr {
+                td { class: "muted", "{expense.date}" }
+                td { "{expense.description}" }
+                td { class: "muted", "{expense.category.name}" }
+                td { "{format_money(&expense.amount)}" }
+                td {}
+            }
+        };
+    };
 
     let remove = move |_| {
         let context = app_context();
@@ -274,7 +295,7 @@ fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
                 .delete_expense(&session, &login, wallet_id, expense_id)
                 .await
             {
-                error.set(Some(failure.message().to_owned()));
+                error.set(Some(describe(&failure)));
             }
         });
     };
@@ -312,20 +333,20 @@ fn Analytics(wallet_id: i32) -> Element {
         let use_case = use_case.clone();
         let session = session_signal.read().clone();
         async move {
-            let session = session?;
+            let Some(session) = session else {
+                return Err(ClientError::Unauthenticated(NOT_SIGNED_IN.to_owned()));
+            };
             let login = session.login().to_owned();
             let range = DateRange::new(None, None);
 
             let counts = use_case
                 .counted_categories(&session, &login, wallet_id, &range)
-                .await
-                .ok()?;
+                .await?;
             let highest = use_case
                 .highest_expense(&session, &login, wallet_id, &range)
-                .await
-                .ok()?;
+                .await?;
 
-            Some((counts, highest))
+            Ok((counts, highest))
         }
     });
 
@@ -333,13 +354,16 @@ fn Analytics(wallet_id: i32) -> Element {
         matches!(event, ClientEvent::ExpenseChanged { .. })
     });
 
-    let loaded = analytics.read_unchecked().clone().flatten();
+    let loaded = analytics.read_unchecked().clone();
 
     rsx! {
         h2 { "Breakdown" }
         match loaded {
             None => rsx! { p { class: "muted", "Loading…" } },
-            Some((counts, highest)) => {
+            Some(Err(error)) => rsx! {
+                p { class: "error", role: "alert", "{describe(&error)}" }
+            },
+            Some(Ok((counts, highest))) => {
                 let mut rows: Vec<(String, i64)> = counts.into_iter().collect();
                 rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 

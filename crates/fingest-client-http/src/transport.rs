@@ -4,6 +4,8 @@
 //! bearer token and the same error mapping. Splitting per context would duplicate all three.
 
 use std::rc::Rc;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Duration;
 
 use async_trait::async_trait;
 use fingest_client_ports::{
@@ -37,6 +39,36 @@ enum Auth {
     Bearer,
 }
 
+/// Without limits a stalled connection on a phone never resolves, so the screen and its
+/// form wait forever.
+#[cfg(not(target_arch = "wasm32"))]
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(not(target_arch = "wasm32"))]
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+#[cfg(not(target_arch = "wasm32"))]
+fn http_client() -> reqwest::Client {
+    native_client(CONNECT_TIMEOUT, REQUEST_TIMEOUT)
+}
+
+/// `reqwest` has no timeout knob over `fetch`; the browser applies its own limits.
+#[cfg(target_arch = "wasm32")]
+fn http_client() -> reqwest::Client {
+    reqwest::Client::new()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn native_client(connect: Duration, total: Duration) -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(connect)
+        .timeout(total)
+        .build()
+        .unwrap_or_else(|error| {
+            tracing::error!(%error, "HTTP client could not be configured; requests have no timeout");
+            reqwest::Client::new()
+        })
+}
+
 pub struct ApiClient {
     base_url: String,
     http: reqwest::Client,
@@ -50,10 +82,19 @@ impl ApiClient {
         tokens: Rc<dyn TokenSource>,
         events: Rc<dyn EventBus>,
     ) -> Self {
+        Self::with_client(base_url, tokens, events, http_client())
+    }
+
+    fn with_client(
+        base_url: impl Into<String>,
+        tokens: Rc<dyn TokenSource>,
+        events: Rc<dyn EventBus>,
+        http: reqwest::Client,
+    ) -> Self {
         Self {
             // Trailing slashes would double up against the leading slash on every path.
             base_url: base_url.into().trim_end_matches('/').to_owned(),
-            http: reqwest::Client::new(),
+            http,
             tokens,
             events,
         }
@@ -170,7 +211,7 @@ impl CatalogApi for ApiClient {
         profit: bool,
         new_name: &str,
     ) -> Result<CategoryDto, ClientError> {
-        let path = format!("/resources/categories/{}/{profit}", segment(name));
+        let path = format!("/resources/categories/{}/{profit}", segment(name)?);
 
         self.send(
             self.http.put(self.url(&path)).json(&UpdateCategoryRequest {
@@ -182,7 +223,7 @@ impl CatalogApi for ApiClient {
     }
 
     async fn delete(&self, name: &str, profit: bool) -> Result<(), ClientError> {
-        let path = format!("/resources/categories/{}/{profit}", segment(name));
+        let path = format!("/resources/categories/{}/{profit}", segment(name)?);
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -192,7 +233,7 @@ impl CatalogApi for ApiClient {
 #[async_trait(?Send)]
 impl UsersApi for ApiClient {
     async fn list(&self, login: &str) -> Result<Vec<UserDto>, ClientError> {
-        let path = format!("/resources/users/{}", segment(login));
+        let path = format!("/resources/users/{}", segment(login)?);
 
         self.send(self.http.get(self.url(&path)), Auth::Bearer)
             .await
@@ -204,7 +245,7 @@ impl UsersApi for ApiClient {
         field: NameField,
         value: &str,
     ) -> Result<(), ClientError> {
-        let path = format!("/resources/users/{}", segment(login));
+        let path = format!("/resources/users/{}", segment(login)?);
         // The server reads the new value from the body key named after the query parameter.
         let body = serde_json::json!({ field.key(): value });
 
@@ -219,7 +260,7 @@ impl UsersApi for ApiClient {
     }
 
     async fn delete(&self, login: &str) -> Result<(), ClientError> {
-        let path = format!("/resources/users/{}", segment(login));
+        let path = format!("/resources/users/{}", segment(login)?);
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -227,22 +268,25 @@ impl UsersApi for ApiClient {
 }
 
 impl ApiClient {
-    fn wallets_path(login: &str, wallet_id: i32) -> String {
-        format!("/resources/users/{}/wallets/{wallet_id}", segment(login))
+    fn wallets_path(login: &str, wallet_id: i32) -> Result<String, ClientError> {
+        Ok(format!(
+            "/resources/users/{}/wallets/{wallet_id}",
+            segment(login)?
+        ))
     }
 }
 
 #[async_trait(?Send)]
 impl WalletsApi for ApiClient {
     async fn list(&self, login: &str) -> Result<Vec<WalletDto>, ClientError> {
-        let path = format!("/resources/users/{}/wallets", segment(login));
+        let path = format!("/resources/users/{}/wallets", segment(login)?);
 
         self.send(self.http.get(self.url(&path)), Auth::Bearer)
             .await
     }
 
     async fn create(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, ClientError> {
-        let path = format!("/resources/users/{}/wallets", segment(login));
+        let path = format!("/resources/users/{}/wallets", segment(login)?);
 
         self.send(self.http.post(self.url(&path)).json(&wallet), Auth::Bearer)
             .await
@@ -254,14 +298,14 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         patch: UpdateWalletRequest,
     ) -> Result<WalletDto, ClientError> {
-        let path = Self::wallets_path(login, wallet_id);
+        let path = Self::wallets_path(login, wallet_id)?;
 
         self.send(self.http.put(self.url(&path)).json(&patch), Auth::Bearer)
             .await
     }
 
     async fn delete(&self, login: &str, wallet_id: i32) -> Result<(), ClientError> {
-        let path = Self::wallets_path(login, wallet_id);
+        let path = Self::wallets_path(login, wallet_id)?;
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -273,7 +317,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         range: &DateRange,
     ) -> Result<SummaryDto, ClientError> {
-        let path = format!("{}/summary", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/summary", Self::wallets_path(login, wallet_id)?);
 
         self.send(
             self.http.get(self.url(&path)).query(&range_query(range)),
@@ -288,7 +332,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         range: &DateRange,
     ) -> Result<Option<ExpenseDto>, ClientError> {
-        let path = format!("{}/highest_expense", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/highest_expense", Self::wallets_path(login, wallet_id)?);
 
         // A bare `null` is a legitimate answer here, not an empty body.
         self.send(
@@ -306,7 +350,7 @@ impl WalletsApi for ApiClient {
     ) -> Result<std::collections::HashMap<String, i64>, ClientError> {
         let path = format!(
             "{}/counted_categories",
-            Self::wallets_path(login, wallet_id)
+            Self::wallets_path(login, wallet_id)?
         );
 
         self.send(
@@ -322,7 +366,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         range: &DateRange,
     ) -> Result<Vec<ExpenseDto>, ClientError> {
-        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id)?);
 
         self.send(
             self.http.get(self.url(&path)).query(&range_query(range)),
@@ -337,7 +381,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         expense: ExpenseInputRequest,
     ) -> Result<ExpenseDto, ClientError> {
-        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id)?);
 
         self.send(self.http.post(self.url(&path)).json(&expense), Auth::Bearer)
             .await
@@ -352,7 +396,7 @@ impl WalletsApi for ApiClient {
     ) -> Result<ExpenseDto, ClientError> {
         let path = format!(
             "{}/expenses/{expense_id}",
-            Self::wallets_path(login, wallet_id)
+            Self::wallets_path(login, wallet_id)?
         );
 
         self.send(self.http.put(self.url(&path)).json(&patch), Auth::Bearer)
@@ -367,7 +411,7 @@ impl WalletsApi for ApiClient {
     ) -> Result<(), ClientError> {
         let path = format!(
             "{}/expenses/{expense_id}",
-            Self::wallets_path(login, wallet_id)
+            Self::wallets_path(login, wallet_id)?
         );
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
@@ -382,7 +426,7 @@ impl PlanningApi for ApiClient {
         login: &str,
         filter: &BudgetFilter,
     ) -> Result<Vec<BudgetOutputDto>, ClientError> {
-        let path = format!("/resources/users/{}/budgets", segment(login));
+        let path = format!("/resources/users/{}/budgets", segment(login)?);
         // Two windows, not one: `start_*` bounds where a budget begins, `end_*` where it ends.
         let query = [
             ("start_min", filter.start.start.to_string()),
@@ -400,7 +444,7 @@ impl PlanningApi for ApiClient {
         login: &str,
         request: BudgetInputRequest,
     ) -> Result<BudgetDto, ClientError> {
-        let path = format!("/resources/users/{}/budgets", segment(login));
+        let path = format!("/resources/users/{}/budgets", segment(login)?);
 
         self.send(self.http.post(self.url(&path)).json(&request), Auth::Bearer)
             .await
@@ -412,14 +456,14 @@ impl PlanningApi for ApiClient {
         budget_id: i32,
         patch: UpdateBudgetRequest,
     ) -> Result<BudgetDto, ClientError> {
-        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login));
+        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login)?);
 
         self.send(self.http.put(self.url(&path)).json(&patch), Auth::Bearer)
             .await
     }
 
     async fn delete(&self, login: &str, budget_id: i32) -> Result<(), ClientError> {
-        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login));
+        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login)?);
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -479,6 +523,56 @@ mod tests {
             events.recorded().is_empty(),
             "nobody was signed in, so nothing expired"
         );
+    }
+
+    /// A listener that accepts and never answers is what a dead Wi-Fi or a stale
+    /// `adb reverse` looks like from the phone.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn a_server_that_never_answers_times_out_as_a_network_error() {
+        use std::net::TcpListener;
+        use std::time::Instant;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let held = listener.accept();
+            std::thread::sleep(Duration::from_secs(5));
+            drop(held);
+        });
+
+        let client = ApiClient::with_client(
+            format!("http://{address}"),
+            Rc::new(FixedToken(None)),
+            Rc::new(RecordingBus::default()),
+            native_client(Duration::from_millis(200), Duration::from_millis(300)),
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let started = Instant::now();
+        let result = runtime.block_on(CapabilityApi::fetch(&client));
+
+        assert!(matches!(result, Err(ClientError::Network(_))));
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "the request was not bounded"
+        );
+    }
+
+    /// `/resources/users/../wallets` would be sent as `/resources/wallets`.
+    #[test]
+    fn a_dot_only_login_is_refused_before_any_request() {
+        let (client, events) = client(Some("token"));
+
+        let wallets = futures::executor::block_on(WalletsApi::list(&client, ".."));
+        let delete = futures::executor::block_on(CatalogApi::delete(&client, ".", false));
+
+        assert!(matches!(wallets, Err(ClientError::BadRequest(_))));
+        assert!(matches!(delete, Err(ClientError::BadRequest(_))));
+        assert!(events.recorded().is_empty());
     }
 
     #[test]
