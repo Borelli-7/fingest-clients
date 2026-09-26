@@ -94,5 +94,8 @@ clients.
 
 Android Keystore restart verification is documented in `ANDROID_KEYSTORE_VERIFICATION.md`.
 
-The capability gate now exercises a real module path: `forecast` is registered as gated by
-`budget-forecast` and appears in navigation only when the capability is reported.
+The capability gate guards one real module: **Forecast**, gated by `budget-forecast`. It projects
+each running budget to the end of its period at the current pace
+(`fingest_client_planning_core::project`). No plugin shipped with `fingest-rs-v2` declares
+`budget-forecast` yet, so against a default API the module stays hidden. That is the gate
+failing closed, not a bug. Showing it needs a server plugin that declares the capability.
