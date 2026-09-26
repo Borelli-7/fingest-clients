@@ -13,9 +13,10 @@ license = "MIT"
 # rather than a runtime surprise. Both crates are pure Rust and compile to wasm32.
 # Pulled over git rather than by path: this repo stands alone, and a relative path would
 # only resolve on a machine that happens to have the API checked out as a sibling.
-# Cargo.lock pins the exact commit, so builds stay reproducible.
-fingest-contracts = { git = "https://github.com/Borelli-7/fingest-rs-v2.git", branch = "main" }
-fingest-kernel = { git = "https://github.com/Borelli-7/fingest-rs-v2.git", branch = "main" }
+# Pinned to an immutable revision for reproducible builds; bump intentionally via
+# GIT_DEPENDENCY_UPGRADE.md.
+fingest-contracts = { git = "https://github.com/Borelli-7/fingest-rs-v2.git", rev = "6c268a0f5569e1b8658d6efd1f96715ce89b48e3" }
+fingest-kernel = { git = "https://github.com/Borelli-7/fingest-rs-v2.git", rev = "6c268a0f5569e1b8658d6efd1f96715ce89b48e3" }
 
 # --- port-safe (pure): usable from any crate ---
 serde = { version = "1.0", features = ["derive"] }
