@@ -6,6 +6,7 @@
 
 pub mod budgets;
 pub mod categories;
+pub mod forecast;
 pub mod home;
 pub mod login;
 pub mod not_found;

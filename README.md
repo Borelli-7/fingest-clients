@@ -34,6 +34,20 @@ every member manifest and fails the build if one of them names `dioxus`, `reqwes
 The test is written to fail: introduce a violation deliberately and it will catch it. Run it with
 `cargo test -p fingest-client-ports --test dependency_rule`, or as part of `cargo test --workspace`.
 
+## Capability-gated modules
+
+Capability-gated modules are registered with `ModuleDescriptor::gated(name, capability, nav)` in
+the client bootstrap registries:
+
+- `crates/fingest-web-bootstrap/src/modules.rs`
+- `crates/fingest-mobile-bootstrap/src/modules.rs`
+
+Validation checklist when adding one:
+
+1. Add the route to both shell routers if the module should be reachable on both clients.
+2. Guard the route component with `context.modules.is_enabled(...)` so deep links fail closed.
+3. Add registry tests proving the nav entry is hidden without the capability and visible with it.
+
 ## Shared crates
 
 `fingest-contracts` and `fingest-kernel` are pulled from the API repository over git rather than
@@ -67,7 +81,9 @@ Verified end to end in the browser: login and session restore, categories, users
 expenses. Verified on device: login, wallet list and the entry sheet.
 
 Not yet verified at runtime, though compiling and unit-tested: the budgets screens on both
-clients. The capability gate has no gated module exercising it yet — every module currently ships
-as core.
+clients.
 
 Android Keystore restart verification is documented in `ANDROID_KEYSTORE_VERIFICATION.md`.
+
+The capability gate now exercises a real module path: `forecast` is registered as gated by
+`budget-forecast` and appears in navigation only when the capability is reported.

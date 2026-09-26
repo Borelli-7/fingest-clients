@@ -7,6 +7,7 @@
 pub mod budgets;
 pub mod categories;
 pub mod entry_sheet;
+pub mod forecast;
 pub mod login;
 pub mod routes;
 pub mod tabs;
