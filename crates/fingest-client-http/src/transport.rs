@@ -211,7 +211,7 @@ impl CatalogApi for ApiClient {
         profit: bool,
         new_name: &str,
     ) -> Result<CategoryDto, ClientError> {
-        let path = format!("/resources/categories/{}/{profit}", segment(name));
+        let path = format!("/resources/categories/{}/{profit}", segment(name)?);
 
         self.send(
             self.http.put(self.url(&path)).json(&UpdateCategoryRequest {
@@ -223,7 +223,7 @@ impl CatalogApi for ApiClient {
     }
 
     async fn delete(&self, name: &str, profit: bool) -> Result<(), ClientError> {
-        let path = format!("/resources/categories/{}/{profit}", segment(name));
+        let path = format!("/resources/categories/{}/{profit}", segment(name)?);
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -233,7 +233,7 @@ impl CatalogApi for ApiClient {
 #[async_trait(?Send)]
 impl UsersApi for ApiClient {
     async fn list(&self, login: &str) -> Result<Vec<UserDto>, ClientError> {
-        let path = format!("/resources/users/{}", segment(login));
+        let path = format!("/resources/users/{}", segment(login)?);
 
         self.send(self.http.get(self.url(&path)), Auth::Bearer)
             .await
@@ -245,7 +245,7 @@ impl UsersApi for ApiClient {
         field: NameField,
         value: &str,
     ) -> Result<(), ClientError> {
-        let path = format!("/resources/users/{}", segment(login));
+        let path = format!("/resources/users/{}", segment(login)?);
         // The server reads the new value from the body key named after the query parameter.
         let body = serde_json::json!({ field.key(): value });
 
@@ -260,7 +260,7 @@ impl UsersApi for ApiClient {
     }
 
     async fn delete(&self, login: &str) -> Result<(), ClientError> {
-        let path = format!("/resources/users/{}", segment(login));
+        let path = format!("/resources/users/{}", segment(login)?);
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -268,22 +268,25 @@ impl UsersApi for ApiClient {
 }
 
 impl ApiClient {
-    fn wallets_path(login: &str, wallet_id: i32) -> String {
-        format!("/resources/users/{}/wallets/{wallet_id}", segment(login))
+    fn wallets_path(login: &str, wallet_id: i32) -> Result<String, ClientError> {
+        Ok(format!(
+            "/resources/users/{}/wallets/{wallet_id}",
+            segment(login)?
+        ))
     }
 }
 
 #[async_trait(?Send)]
 impl WalletsApi for ApiClient {
     async fn list(&self, login: &str) -> Result<Vec<WalletDto>, ClientError> {
-        let path = format!("/resources/users/{}/wallets", segment(login));
+        let path = format!("/resources/users/{}/wallets", segment(login)?);
 
         self.send(self.http.get(self.url(&path)), Auth::Bearer)
             .await
     }
 
     async fn create(&self, login: &str, wallet: WalletDto) -> Result<WalletDto, ClientError> {
-        let path = format!("/resources/users/{}/wallets", segment(login));
+        let path = format!("/resources/users/{}/wallets", segment(login)?);
 
         self.send(self.http.post(self.url(&path)).json(&wallet), Auth::Bearer)
             .await
@@ -295,14 +298,14 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         patch: UpdateWalletRequest,
     ) -> Result<WalletDto, ClientError> {
-        let path = Self::wallets_path(login, wallet_id);
+        let path = Self::wallets_path(login, wallet_id)?;
 
         self.send(self.http.put(self.url(&path)).json(&patch), Auth::Bearer)
             .await
     }
 
     async fn delete(&self, login: &str, wallet_id: i32) -> Result<(), ClientError> {
-        let path = Self::wallets_path(login, wallet_id);
+        let path = Self::wallets_path(login, wallet_id)?;
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -314,7 +317,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         range: &DateRange,
     ) -> Result<SummaryDto, ClientError> {
-        let path = format!("{}/summary", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/summary", Self::wallets_path(login, wallet_id)?);
 
         self.send(
             self.http.get(self.url(&path)).query(&range_query(range)),
@@ -329,7 +332,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         range: &DateRange,
     ) -> Result<Option<ExpenseDto>, ClientError> {
-        let path = format!("{}/highest_expense", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/highest_expense", Self::wallets_path(login, wallet_id)?);
 
         // A bare `null` is a legitimate answer here, not an empty body.
         self.send(
@@ -347,7 +350,7 @@ impl WalletsApi for ApiClient {
     ) -> Result<std::collections::HashMap<String, i64>, ClientError> {
         let path = format!(
             "{}/counted_categories",
-            Self::wallets_path(login, wallet_id)
+            Self::wallets_path(login, wallet_id)?
         );
 
         self.send(
@@ -363,7 +366,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         range: &DateRange,
     ) -> Result<Vec<ExpenseDto>, ClientError> {
-        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id)?);
 
         self.send(
             self.http.get(self.url(&path)).query(&range_query(range)),
@@ -378,7 +381,7 @@ impl WalletsApi for ApiClient {
         wallet_id: i32,
         expense: ExpenseInputRequest,
     ) -> Result<ExpenseDto, ClientError> {
-        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id));
+        let path = format!("{}/expenses", Self::wallets_path(login, wallet_id)?);
 
         self.send(self.http.post(self.url(&path)).json(&expense), Auth::Bearer)
             .await
@@ -393,7 +396,7 @@ impl WalletsApi for ApiClient {
     ) -> Result<ExpenseDto, ClientError> {
         let path = format!(
             "{}/expenses/{expense_id}",
-            Self::wallets_path(login, wallet_id)
+            Self::wallets_path(login, wallet_id)?
         );
 
         self.send(self.http.put(self.url(&path)).json(&patch), Auth::Bearer)
@@ -408,7 +411,7 @@ impl WalletsApi for ApiClient {
     ) -> Result<(), ClientError> {
         let path = format!(
             "{}/expenses/{expense_id}",
-            Self::wallets_path(login, wallet_id)
+            Self::wallets_path(login, wallet_id)?
         );
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
@@ -423,7 +426,7 @@ impl PlanningApi for ApiClient {
         login: &str,
         filter: &BudgetFilter,
     ) -> Result<Vec<BudgetOutputDto>, ClientError> {
-        let path = format!("/resources/users/{}/budgets", segment(login));
+        let path = format!("/resources/users/{}/budgets", segment(login)?);
         // Two windows, not one: `start_*` bounds where a budget begins, `end_*` where it ends.
         let query = [
             ("start_min", filter.start.start.to_string()),
@@ -441,7 +444,7 @@ impl PlanningApi for ApiClient {
         login: &str,
         request: BudgetInputRequest,
     ) -> Result<BudgetDto, ClientError> {
-        let path = format!("/resources/users/{}/budgets", segment(login));
+        let path = format!("/resources/users/{}/budgets", segment(login)?);
 
         self.send(self.http.post(self.url(&path)).json(&request), Auth::Bearer)
             .await
@@ -453,14 +456,14 @@ impl PlanningApi for ApiClient {
         budget_id: i32,
         patch: UpdateBudgetRequest,
     ) -> Result<BudgetDto, ClientError> {
-        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login));
+        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login)?);
 
         self.send(self.http.put(self.url(&path)).json(&patch), Auth::Bearer)
             .await
     }
 
     async fn delete(&self, login: &str, budget_id: i32) -> Result<(), ClientError> {
-        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login));
+        let path = format!("/resources/users/{}/budgets/{budget_id}", segment(login)?);
 
         self.send(self.http.delete(self.url(&path)), Auth::Bearer)
             .await
@@ -557,6 +560,19 @@ mod tests {
             started.elapsed() < Duration::from_secs(3),
             "the request was not bounded"
         );
+    }
+
+    /// `/resources/users/../wallets` would be sent as `/resources/wallets`.
+    #[test]
+    fn a_dot_only_login_is_refused_before_any_request() {
+        let (client, events) = client(Some("token"));
+
+        let wallets = futures::executor::block_on(WalletsApi::list(&client, ".."));
+        let delete = futures::executor::block_on(CatalogApi::delete(&client, ".", false));
+
+        assert!(matches!(wallets, Err(ClientError::BadRequest(_))));
+        assert!(matches!(delete, Err(ClientError::BadRequest(_))));
+        assert!(events.recorded().is_empty());
     }
 
     #[test]
