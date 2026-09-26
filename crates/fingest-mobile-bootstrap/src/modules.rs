@@ -33,6 +33,15 @@ pub fn module_registry() -> Result<ModuleRegistry, ModuleError> {
         }),
     ))?;
 
+    registry.register(ModuleDescriptor::gated(
+        "forecast",
+        "budget-forecast",
+        Some(NavEntry {
+            label: "Forecast",
+            path: "/forecast",
+        }),
+    ))?;
+
     Ok(registry)
 }
 
@@ -40,6 +49,10 @@ pub fn module_registry() -> Result<ModuleRegistry, ModuleError> {
 mod tests {
     use super::*;
     use fingest_client_modules::Capabilities;
+
+    fn capabilities(names: &[&str]) -> Capabilities {
+        names.iter().map(|name| (*name).to_owned()).collect()
+    }
 
     #[test]
     fn the_registry_builds_without_duplicates() {
@@ -50,10 +63,7 @@ mod tests {
     fn core_modules_survive_a_capabilities_outage() {
         let registry = module_registry().unwrap();
 
-        assert_eq!(
-            registry.enabled(&Capabilities::none()).len(),
-            registry.all().len()
-        );
+        assert!(!registry.is_enabled("forecast", &Capabilities::none()));
     }
 
     /// Every tab must point at a route the mobile router actually answers.
@@ -90,5 +100,24 @@ mod tests {
             matches!(Route::from_str("/accounts"), Ok(Route::NotFound { .. })),
             "a path with no screen must not look routable"
         );
+    }
+
+    #[test]
+    fn forecast_tab_is_hidden_without_capability() {
+        let entries = module_registry().unwrap().nav(&Capabilities::none());
+        assert!(entries.iter().all(|entry| entry.path != "/forecast"));
+    }
+
+    #[test]
+    fn forecast_tab_is_available_when_capability_is_reported() {
+        use fingest_mobile_shell::Route;
+        use std::str::FromStr;
+
+        let registry = module_registry().unwrap();
+        let entries = registry.nav(&capabilities(&["budget-forecast"]));
+        assert!(entries.iter().any(|entry| entry.path == "/forecast"));
+        assert!(registry.is_enabled("forecast", &capabilities(&["budget-forecast"])));
+
+        assert!(matches!(Route::from_str("/forecast"), Ok(Route::Forecast {})));
     }
 }

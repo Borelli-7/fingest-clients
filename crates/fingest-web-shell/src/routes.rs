@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::{
-    budgets::Budgets, categories::Categories, home::Home, login::Login, not_found::NotFound,
+    budgets::Budgets, categories::Categories, forecast::Forecast, home::Home, login::Login, not_found::NotFound,
     shell::Shell, users::Users, wallet_detail::WalletDetail, wallets::Wallets,
 };
 
@@ -31,6 +31,9 @@ pub enum Route {
 
         #[route("/budgets")]
         Budgets {},
+
+        #[route("/forecast")]
+        Forecast {},
 
         #[route("/accounts")]
         Users {},
