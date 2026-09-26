@@ -43,7 +43,7 @@ pub fn decode<T: DeserializeOwned>(body: &str) -> Result<T, ClientError> {
 
     serde_json::from_str(body).map_err(|error| {
         tracing::error!(%error, "response did not match the contract");
-        ClientError::Decode(format!("Unexpected response from the server: {error}"))
+        ClientError::Decode("Unexpected response from the server".to_owned())
     })
 }
 
@@ -109,5 +109,13 @@ mod tests {
         let err = decode::<UserDto>(r#"{"login":42}"#).unwrap_err();
 
         assert!(matches!(err, ClientError::Decode(_)));
+    }
+
+    /// Parser detail goes to the log; a person sees a generic message.
+    #[test]
+    fn a_decode_error_carries_no_parser_detail() {
+        let err = decode::<UserDto>(r#"{"login":42}"#).unwrap_err();
+
+        assert_eq!(err.message(), "Unexpected response from the server");
     }
 }

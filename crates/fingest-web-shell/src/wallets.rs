@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
-use fingest_client_view::{app_context, format_money, use_event_refresh};
+use fingest_client_view::{
+    NOT_SIGNED_IN, app_context, describe, format_money, hold, use_event_refresh,
+};
 use fingest_client_wallets_core::parse_money;
 use fingest_contracts::WalletDto;
 
@@ -43,7 +45,7 @@ pub fn Wallets() -> Element {
         match &*wallets.read_unchecked() {
             None => rsx! { p { class: "muted", "Loading…" } },
             Some(Err(error)) => rsx! {
-                p { class: "error", role: "alert", "{error.message()}" }
+                p { class: "error", role: "alert", "{describe(error)}" }
             },
             Some(Ok(list)) if list.is_empty() => rsx! {
                 p { class: "muted", "No wallets yet. Add one above." }
@@ -74,7 +76,7 @@ fn WalletForm() -> Element {
     let mut amount = use_signal(String::new);
     let mut currency = use_signal(|| "PLN".to_owned());
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let submit = move |event: FormEvent| {
         event.prevent_default();
@@ -87,18 +89,21 @@ fn WalletForm() -> Element {
         let money = match parse_money(&amount(), &currency()) {
             Ok(money) => money,
             Err(failure) => {
-                error.set(Some(failure.message().to_owned()));
+                error.set(Some(describe(&failure)));
                 return;
             }
         };
 
         let context = app_context();
-        spawn(async move {
-            busy.set(true);
-            error.set(None);
+        let Some(session) = context.session.read().clone() else {
+            error.set(Some(NOT_SIGNED_IN.to_owned()));
+            return;
+        };
+        error.set(None);
+        let busy_guard = hold(busy);
 
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+        spawn(async move {
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             match context
@@ -110,10 +115,8 @@ fn WalletForm() -> Element {
                     name.set(String::new());
                     amount.set(String::new());
                 }
-                Err(failure) => error.set(Some(failure.message().to_owned())),
+                Err(failure) => error.set(Some(describe(&failure))),
             }
-
-            busy.set(false);
         });
     };
 
@@ -154,7 +157,16 @@ fn WalletRow(wallet: WalletDto) -> Element {
     let mut draft = use_signal(|| wallet.name.clone());
     let mut error = use_signal(|| None::<String>);
 
-    let wallet_id = wallet.id.unwrap_or_default();
+    // Without an id nothing on the server can be addressed, so nothing is offered.
+    let Some(wallet_id) = wallet.id else {
+        return rsx! {
+            tr {
+                td { "{wallet.name}" }
+                td { "{format_money(&wallet.amount)}" }
+                td {}
+            }
+        };
+    };
 
     let commit = move |event: FormEvent| {
         event.prevent_default();
@@ -174,7 +186,7 @@ fn WalletRow(wallet: WalletDto) -> Element {
                     renaming.set(false);
                     error.set(None);
                 }
-                Err(failure) => error.set(Some(failure.message().to_owned())),
+                Err(failure) => error.set(Some(describe(&failure))),
             }
         });
     };
@@ -187,7 +199,7 @@ fn WalletRow(wallet: WalletDto) -> Element {
             let login = session.login().to_owned();
 
             if let Err(failure) = context.wallets.delete(&session, &login, wallet_id).await {
-                error.set(Some(failure.message().to_owned()));
+                error.set(Some(describe(&failure)));
             }
         });
     };

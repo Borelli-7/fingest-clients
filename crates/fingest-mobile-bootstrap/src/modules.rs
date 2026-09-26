@@ -74,18 +74,17 @@ mod tests {
     #[test]
     fn every_tab_targets_a_known_route() {
         use fingest_mobile_shell::Route;
-        use std::str::FromStr;
 
-        for entry in module_registry().unwrap().nav(&Capabilities::none()) {
-            match Route::from_str(entry.path) {
-                Ok(Route::NotFound { .. }) | Err(_) => {
-                    panic!(
-                        "tab {} points at a route the router does not serve",
-                        entry.path
-                    )
-                }
-                Ok(_) => {}
-            }
+        let entries = module_registry()
+            .unwrap()
+            .nav(&capabilities(&["budget-forecast"]));
+
+        for entry in entries {
+            assert!(
+                Route::for_nav(entry.path).is_some(),
+                "tab {} points at a route the router does not serve",
+                entry.path
+            );
         }
     }
 
@@ -94,10 +93,9 @@ mod tests {
     #[test]
     fn the_route_guard_rejects_a_path_with_no_screen() {
         use fingest_mobile_shell::Route;
-        use std::str::FromStr;
 
         assert!(
-            matches!(Route::from_str("/accounts"), Ok(Route::NotFound { .. })),
+            Route::for_nav("/accounts").is_none(),
             "a path with no screen must not look routable"
         );
     }
@@ -118,6 +116,9 @@ mod tests {
         assert!(entries.iter().any(|entry| entry.path == "/forecast"));
         assert!(registry.is_enabled("forecast", &capabilities(&["budget-forecast"])));
 
-        assert!(matches!(Route::from_str("/forecast"), Ok(Route::Forecast {})));
+        assert!(matches!(
+            Route::from_str("/forecast"),
+            Ok(Route::Forecast {})
+        ));
     }
 }
