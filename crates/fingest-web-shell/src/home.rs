@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use fingest_client_view::app_context;
+use fingest_client_view::{app_context, describe};
 
 #[component]
 pub fn Home() -> Element {
@@ -32,7 +32,7 @@ pub fn Home() -> Element {
                 None => rsx! { p { class: "muted", "Checking…" } },
                 Some(Ok(status)) => rsx! { p { class: "muted", "Accepted for {status.login}" } },
                 Some(Err(error)) => rsx! {
-                    p { class: "error", role: "alert", "{error.message()}" }
+                    p { class: "error", role: "alert", "{describe(error)}" }
                 },
             }
         }

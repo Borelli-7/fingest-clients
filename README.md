@@ -60,7 +60,7 @@ The bump process, review checklist and validation commands are documented in
 ## Building
 
 ```bash
-cargo test --workspace          # 142 tests
+cargo test --workspace
 cargo clippy --workspace --all-targets
 
 # web

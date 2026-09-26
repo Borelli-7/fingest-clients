@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use fingest_client_ports::ClientEvent;
 use fingest_client_view::{
     app_context,
     category::{find_category, option_value},
@@ -6,7 +7,6 @@ use fingest_client_view::{
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
 use fingest_contracts::WalletDto;
-use fingest_client_ports::ClientEvent;
 
 /// Recording an entry, in a sheet rather than the web client's inline row.
 ///
