@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
-use fingest_client_view::{app_context, format_money, use_event_refresh};
+use fingest_client_view::{NOT_SIGNED_IN, app_context, format_money, hold, use_event_refresh};
 use fingest_client_wallets_core::parse_money;
 use fingest_contracts::WalletDto;
 
@@ -74,7 +74,7 @@ fn WalletForm() -> Element {
     let mut amount = use_signal(String::new);
     let mut currency = use_signal(|| "PLN".to_owned());
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let submit = move |event: FormEvent| {
         event.prevent_default();
@@ -93,12 +93,15 @@ fn WalletForm() -> Element {
         };
 
         let context = app_context();
-        spawn(async move {
-            busy.set(true);
-            error.set(None);
+        let Some(session) = context.session.read().clone() else {
+            error.set(Some(NOT_SIGNED_IN.to_owned()));
+            return;
+        };
+        error.set(None);
+        let busy_guard = hold(busy);
 
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+        spawn(async move {
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             match context
@@ -112,8 +115,6 @@ fn WalletForm() -> Element {
                 }
                 Err(failure) => error.set(Some(failure.message().to_owned())),
             }
-
-            busy.set(false);
         });
     };
 

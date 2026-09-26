@@ -1,9 +1,9 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
 use fingest_client_view::{
-    app_context,
+    NOT_SIGNED_IN, app_context,
     category::{find_category, option_value},
-    format_money, use_event_refresh,
+    format_money, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
 use fingest_contracts::{ExpenseDto, WalletDto};
@@ -78,7 +78,7 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
     let mut date = use_signal(|| context.clock.today().to_string());
     let mut selected = use_signal(String::new);
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let wallet_currency = wallet.amount.currency.to_string();
     let wallet_balance = wallet.amount.clone();
@@ -117,12 +117,15 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
 
             let balance = wallet_balance.clone();
             let context = app_context();
-            spawn(async move {
-                busy.set(true);
-                error.set(None);
+            let Some(session) = context.session.read().clone() else {
+                error.set(Some(NOT_SIGNED_IN.to_owned()));
+                return;
+            };
+            error.set(None);
+            let busy_guard = hold(busy);
 
-                let session = context.session.read().clone();
-                let Some(session) = session else { return };
+            spawn(async move {
+                let _busy = busy_guard;
                 let login = session.login().to_owned();
 
                 let result = context
@@ -148,8 +151,6 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
                     }
                     Err(failure) => error.set(Some(failure.message().to_owned())),
                 }
-
-                busy.set(false);
             });
         }
     };
