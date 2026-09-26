@@ -13,7 +13,7 @@ use fingest_client_ports::ClientEvent;
 /// Five inputs side by side is unusable at 390px, and a sheet is what the on-screen
 /// keyboard can push up without hiding the field being typed into.
 #[component]
-pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
+pub fn EntrySheet(wallet_id: i32, wallet: WalletDto, open: Signal<bool>) -> Element {
     let context = app_context();
 
     let catalog = context.catalog.clone();
@@ -34,7 +34,6 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
 
     let currency = wallet.amount.currency.to_string();
     let balance = wallet.amount.clone();
-    let wallet_id = wallet.id.unwrap_or_default();
     let options = categories.read_unchecked().clone().unwrap_or_default();
 
     let submit = {

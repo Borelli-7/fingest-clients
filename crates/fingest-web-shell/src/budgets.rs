@@ -306,7 +306,19 @@ mod tests {
 #[component]
 fn BudgetRow(budget: BudgetOutputDto) -> Element {
     let mut error = use_signal(|| None::<String>);
-    let budget_id = budget.id.unwrap_or_default();
+
+    let Some(budget_id) = budget.id else {
+        return rsx! {
+            tr {
+                td { "{budget.category.name}" }
+                td { class: "muted", "{budget.date_range.start} → {budget.date_range.end}" }
+                td { "{format_money(&budget.total)}" }
+                td { "{format_money(&budget.spent)}" }
+                td { "{format_money(&budget.left)}" }
+                td {}
+            }
+        };
+    };
 
     let remove = move |_| {
         let context = app_context();
