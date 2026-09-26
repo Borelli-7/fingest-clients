@@ -54,6 +54,19 @@ pub enum SecretError {
     Unavailable(String),
 }
 
+/// `SharedPreferences.Editor.commit()` reports a failed write by returning `false`, not by
+/// throwing, so the flag has to be turned into an error explicitly.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn committed(ok: bool, action: &str) -> Result<(), SecretError> {
+    if ok {
+        Ok(())
+    } else {
+        Err(SecretError::Unavailable(format!(
+            "{action} was not committed to disk"
+        )))
+    }
+}
+
 /// Holds nothing across a restart. Correct for tests, and the deliberate default until the
 /// platform backends land.
 #[derive(Default)]
@@ -227,6 +240,22 @@ mod tests {
 
     /// The security property this crate exists for: an unavailable keystore costs the user
     /// a re-login, never a plaintext copy of the token.
+    #[test]
+    fn a_successful_commit_is_success() {
+        assert_eq!(committed(true, "session write"), Ok(()));
+    }
+
+    /// The boolean used to be read and dropped, so a failed write passed for a saved one.
+    #[test]
+    fn a_refused_commit_is_an_error() {
+        let err = committed(false, "session clear").unwrap_err();
+
+        assert_eq!(
+            err,
+            SecretError::Unavailable("session clear was not committed to disk".into())
+        );
+    }
+
     #[test]
     fn a_refusing_keystore_keeps_the_session_for_this_run_only() {
         let store = KeystoreSessionStore::new(RefusingStore);

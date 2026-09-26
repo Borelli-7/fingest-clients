@@ -11,7 +11,7 @@
 use jni::JavaVM;
 use jni::objects::{JObject, JString, JValue};
 
-use crate::{SecretError, SecretStore};
+use crate::{SecretError, SecretStore, committed};
 
 /// One entry, namespaced so it cannot collide with anything else the app stores.
 const PREFS_FILE: &str = "fingest_secure";
@@ -177,23 +177,25 @@ impl SecretStore for AndroidKeystore {
                 )?
                 .l()?;
 
-            // `commit`, not `apply`: a write that silently failed would look like success.
-            env.call_method(&editor, "commit", "()Z", &[])?.z()?;
-            Ok(())
+            // `commit`, not `apply`: its boolean is the only report of a failed write.
+            env.call_method(&editor, "commit", "()Z", &[])?.z()
         })
+        .and_then(|ok| committed(ok, "session write"))
     }
 
     fn clear(&self) {
-        let outcome = self.with_prefs(|env, prefs| {
-            let editor = env.call_method(prefs, "edit", EDITOR_SIG, &[])?.l()?;
-            let editor = env.call_method(&editor, "clear", EDITOR_SIG, &[])?.l()?;
+        let outcome = self
+            .with_prefs(|env, prefs| {
+                let editor = env.call_method(prefs, "edit", EDITOR_SIG, &[])?.l()?;
+                let editor = env.call_method(&editor, "clear", EDITOR_SIG, &[])?.l()?;
 
-            env.call_method(&editor, "commit", "()Z", &[])?.z()?;
-            Ok(())
-        });
+                env.call_method(&editor, "commit", "()Z", &[])?.z()
+            })
+            .and_then(|ok| committed(ok, "session clear"));
 
         if let Err(error) = outcome {
-            tracing::warn!(%error, "could not clear secure storage");
+            // The token may still be on disk after the user signed out.
+            tracing::error!(%error, "could not clear secure storage");
         }
     }
 }
