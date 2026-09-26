@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
-use fingest_client_view::{NOT_SIGNED_IN, app_context, format_money, hold, use_event_refresh};
+use fingest_client_view::{
+    NOT_SIGNED_IN, app_context, describe, format_money, hold, use_event_refresh,
+};
 use fingest_client_wallets_core::parse_money;
 use fingest_contracts::WalletDto;
 
@@ -43,7 +45,7 @@ pub fn Wallets() -> Element {
         match &*wallets.read_unchecked() {
             None => rsx! { p { class: "muted", "Loading…" } },
             Some(Err(error)) => rsx! {
-                p { class: "error", role: "alert", "{error.message()}" }
+                p { class: "error", role: "alert", "{describe(error)}" }
             },
             Some(Ok(list)) if list.is_empty() => rsx! {
                 p { class: "muted", "No wallets yet. Add one above." }
@@ -87,7 +89,7 @@ fn WalletForm() -> Element {
         let money = match parse_money(&amount(), &currency()) {
             Ok(money) => money,
             Err(failure) => {
-                error.set(Some(failure.message().to_owned()));
+                error.set(Some(describe(&failure)));
                 return;
             }
         };
@@ -113,7 +115,7 @@ fn WalletForm() -> Element {
                     name.set(String::new());
                     amount.set(String::new());
                 }
-                Err(failure) => error.set(Some(failure.message().to_owned())),
+                Err(failure) => error.set(Some(describe(&failure))),
             }
         });
     };
@@ -175,7 +177,7 @@ fn WalletRow(wallet: WalletDto) -> Element {
                     renaming.set(false);
                     error.set(None);
                 }
-                Err(failure) => error.set(Some(failure.message().to_owned())),
+                Err(failure) => error.set(Some(describe(&failure))),
             }
         });
     };
@@ -188,7 +190,7 @@ fn WalletRow(wallet: WalletDto) -> Element {
             let login = session.login().to_owned();
 
             if let Err(failure) = context.wallets.delete(&session, &login, wallet_id).await {
-                error.set(Some(failure.message().to_owned()));
+                error.set(Some(describe(&failure)));
             }
         });
     };

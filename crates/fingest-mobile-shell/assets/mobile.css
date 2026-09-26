@@ -202,6 +202,15 @@ input {
   text-decoration: none;
 }
 
+button.tab {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
 .card-foot {
   display: flex;
   align-items: center;
