@@ -18,7 +18,9 @@ enum BudgetScreenState<'a> {
     Ready(&'a [BudgetOutputDto]),
 }
 
-fn budget_screen_state(snapshot: &Option<Result<Vec<BudgetOutputDto>, ClientError>>) -> BudgetScreenState<'_> {
+fn budget_screen_state(
+    snapshot: &Option<Result<Vec<BudgetOutputDto>, ClientError>>,
+) -> BudgetScreenState<'_> {
     match snapshot {
         None => BudgetScreenState::Loading,
         Some(Err(error)) => BudgetScreenState::Error(error),
@@ -169,13 +171,7 @@ fn BudgetForm() -> Element {
 
                 let result = context
                     .budgets
-                    .create(
-                        &session,
-                        &login,
-                        category,
-                        amount,
-                        period,
-                    )
+                    .create(&session, &login, category, amount, period)
                     .await;
 
                 match result {
@@ -265,13 +261,19 @@ mod tests {
     #[test]
     fn loading_state_is_reported_before_data_arrives() {
         let snapshot: Option<Result<Vec<BudgetOutputDto>, ClientError>> = None;
-        assert!(matches!(budget_screen_state(&snapshot), BudgetScreenState::Loading));
+        assert!(matches!(
+            budget_screen_state(&snapshot),
+            BudgetScreenState::Loading
+        ));
     }
 
     #[test]
     fn empty_state_is_reported_for_an_empty_list() {
         let snapshot = Some(Ok(Vec::<BudgetOutputDto>::new()));
-        assert!(matches!(budget_screen_state(&snapshot), BudgetScreenState::Empty));
+        assert!(matches!(
+            budget_screen_state(&snapshot),
+            BudgetScreenState::Empty
+        ));
     }
 
     #[test]
