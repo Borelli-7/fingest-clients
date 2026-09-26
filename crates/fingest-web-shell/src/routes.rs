@@ -42,3 +42,13 @@ pub enum Route {
     #[route("/:..segments")]
     NotFound { segments: Vec<String> },
 }
+
+impl Route {
+    /// The screen a nav entry's path names, or `None` when only the catch-all would answer.
+    pub fn for_nav(path: &str) -> Option<Self> {
+        match path.parse::<Self>() {
+            Ok(Self::NotFound { .. }) | Err(_) => None,
+            Ok(route) => Some(route),
+        }
+    }
+}
