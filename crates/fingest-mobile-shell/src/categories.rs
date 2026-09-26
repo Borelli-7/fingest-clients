@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
-use fingest_client_view::{app_context, describe, use_event_refresh};
+use fingest_client_view::{app_context, describe, hold, use_event_refresh};
 
 /// Shared reference data. Listing is public on the server; mutating is admin-only, and the
 /// controls follow that so a non-admin is never offered an action that would 403.
@@ -54,7 +54,7 @@ fn CategoryForm() -> Element {
     let mut name = use_signal(String::new);
     let mut profit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let submit = move |event: FormEvent| {
         event.prevent_default();
@@ -63,16 +63,15 @@ fn CategoryForm() -> Element {
         }
 
         let context = app_context();
-        spawn(async move {
-            busy.set(true);
-            error.set(None);
+        error.set(None);
+        let busy_guard = hold(busy);
 
+        spawn(async move {
+            let _busy = busy_guard;
             match context.catalog.create(&name(), profit()).await {
                 Ok(_) => name.set(String::new()),
                 Err(failure) => error.set(Some(describe(&failure))),
             }
-
-            busy.set(false);
         });
     };
 

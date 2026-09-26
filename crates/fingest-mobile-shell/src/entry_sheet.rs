@@ -1,9 +1,9 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
 use fingest_client_view::{
-    app_context,
+    NOT_SIGNED_IN, app_context,
     category::{find_category, option_value},
-    describe, use_event_refresh,
+    describe, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
 use fingest_contracts::WalletDto;
@@ -30,7 +30,7 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
     let mut date = use_signal(|| context.clock.today().to_string());
     let mut selected = use_signal(String::new);
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let currency = wallet.amount.currency.to_string();
     let balance = wallet.amount.clone();
@@ -68,12 +68,15 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
 
             let balance = balance.clone();
             let context = app_context();
-            spawn(async move {
-                busy.set(true);
-                error.set(None);
+            let Some(session) = context.session.read().clone() else {
+                error.set(Some(NOT_SIGNED_IN.to_owned()));
+                return;
+            };
+            error.set(None);
+            let busy_guard = hold(busy);
 
-                let session = context.session.read().clone();
-                let Some(session) = session else { return };
+            spawn(async move {
+                let _busy = busy_guard;
                 let login = session.login().to_owned();
 
                 let result = context
@@ -104,8 +107,6 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
                     }
                     Err(failure) => error.set(Some(describe(&failure))),
                 }
-
-                busy.set(false);
             });
         }
     };

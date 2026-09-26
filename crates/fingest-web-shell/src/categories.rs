@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
-use fingest_client_view::{app_context, describe, use_event_refresh};
+use fingest_client_view::{app_context, describe, hold, use_event_refresh};
 use fingest_contracts::CategoryDto;
 
 /// Shared reference data. Listing is public on the server; everything else is admin-only,
@@ -66,7 +66,7 @@ fn CategoryForm() -> Element {
     let mut name = use_signal(String::new);
     let mut profit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let submit = move |event: FormEvent| {
         event.prevent_default();
@@ -75,18 +75,17 @@ fn CategoryForm() -> Element {
         }
 
         let catalog = app_context().catalog;
-        spawn(async move {
-            busy.set(true);
-            error.set(None);
+        error.set(None);
+        let busy_guard = hold(busy);
 
+        spawn(async move {
+            let _busy = busy_guard;
             match catalog.create(&name(), profit()).await {
                 // The list refreshes because `create` published CategoryChanged, not
                 // because this handler told it to.
                 Ok(_) => name.set(String::new()),
                 Err(failure) => error.set(Some(describe(&failure))),
             }
-
-            busy.set(false);
         });
     };
 
