@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::{ClientEvent, NameField};
-use fingest_client_view::{app_context, use_event_refresh};
+use fingest_client_view::{app_context, describe, use_event_refresh};
 use fingest_contracts::UserDto;
 
 use crate::routes::Route;
@@ -63,7 +63,7 @@ pub fn Users() -> Element {
         match &*accounts.read_unchecked() {
             None => rsx! { p { class: "muted", "Loading…" } },
             Some(Err(error)) => rsx! {
-                p { class: "error", role: "alert", "{error.message()}" }
+                p { class: "error", role: "alert", "{describe(error)}" }
             },
             Some(Ok(list)) => rsx! {
                 table {
@@ -127,7 +127,7 @@ fn UserRow(account: UserDto, on_deleted: EventHandler<String>) -> Element {
 
                                 match context.users.delete(&session, &login).await {
                                     Ok(()) => on_deleted.call(login),
-                                    Err(failure) => error.set(Some(failure.message().to_owned())),
+                                    Err(failure) => error.set(Some(describe(&failure))),
                                 }
                             });
                         }
@@ -167,7 +167,7 @@ fn EditableName(login: String, field: NameField, current: Option<String>) -> Ele
                     editing.set(false);
                     error.set(None);
                 }
-                Err(failure) => error.set(Some(failure.message().to_owned())),
+                Err(failure) => error.set(Some(describe(&failure))),
             }
         });
     };

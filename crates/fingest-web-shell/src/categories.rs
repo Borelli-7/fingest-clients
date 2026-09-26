@@ -32,7 +32,7 @@ pub fn Categories() -> Element {
         match &*categories.read_unchecked() {
             None => rsx! { p { class: "muted", "Loading…" } },
             Some(Err(error)) => rsx! {
-                p { class: "error", role: "alert", "{error.message()}" }
+                p { class: "error", role: "alert", "{describe(error)}" }
             },
             Some(Ok(list)) if list.is_empty() => rsx! {
                 p { class: "muted", "No categories yet." }

@@ -116,6 +116,9 @@ mod tests {
         assert!(entries.iter().any(|entry| entry.path == "/forecast"));
         assert!(registry.is_enabled("forecast", &capabilities(&["budget-forecast"])));
 
-        assert!(matches!(Route::from_str("/forecast"), Ok(Route::Forecast {})));
+        assert!(matches!(
+            Route::from_str("/forecast"),
+            Ok(Route::Forecast {})
+        ));
     }
 }

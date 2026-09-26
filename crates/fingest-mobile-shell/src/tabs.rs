@@ -27,6 +27,15 @@ pub fn Tabs() -> Element {
 
     let entries = context.modules.nav(&context.capabilities);
 
+    let sign_out = move |_| {
+        let context = app_context();
+        let mut session = context.session;
+        // Clears the Keystore entry too, so the next launch starts signed out.
+        context.auth.logout();
+        session.set(None);
+        navigator.replace(Route::Login {});
+    };
+
     rsx! {
         div { class: "app",
             main { class: "screen", Outlet::<Route> {} }
@@ -36,6 +45,7 @@ pub fn Tabs() -> Element {
                         Link { key: "{entry.path}", class: "tab", to: route, "{entry.label}" }
                     }
                 }
+                button { class: "tab", r#type: "button", onclick: sign_out, "Sign out" }
             }
         }
     }
