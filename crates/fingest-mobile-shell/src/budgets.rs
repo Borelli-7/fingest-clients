@@ -1,7 +1,23 @@
 use dioxus::prelude::*;
-use fingest_client_ports::{BudgetFilter, ClientEvent};
+use fingest_client_ports::{BudgetFilter, ClientError, ClientEvent};
 use fingest_client_view::{app_context, describe, format_money, use_event_refresh};
 use fingest_contracts::BudgetOutputDto;
+
+enum BudgetScreenState<'a> {
+    Loading,
+    Error(&'a ClientError),
+    Empty,
+    Ready(&'a [BudgetOutputDto]),
+}
+
+fn budget_screen_state(snapshot: &Option<Result<Vec<BudgetOutputDto>, ClientError>>) -> BudgetScreenState<'_> {
+    match snapshot {
+        None => BudgetScreenState::Loading,
+        Some(Err(error)) => BudgetScreenState::Error(error),
+        Some(Ok(list)) if list.is_empty() => BudgetScreenState::Empty,
+        Some(Ok(list)) => BudgetScreenState::Ready(list.as_slice()),
+    }
+}
 
 /// Budgets as progress cards rather than the web client's six-column table.
 ///
@@ -37,17 +53,17 @@ pub fn Budgets() -> Element {
     rsx! {
         header { class: "bar", h1 { "Budgets" } }
 
-        match &*budgets.read_unchecked() {
-            None => rsx! { p { class: "muted", "Loading…" } },
-            Some(Err(error)) => rsx! {
+        match budget_screen_state(&budgets.read_unchecked()) {
+            BudgetScreenState::Loading => rsx! { p { class: "muted", "Loading…" } },
+            BudgetScreenState::Error(error) => rsx! {
                 p { class: "error", role: "alert", "{describe(error)}" }
             },
-            Some(Ok(list)) if list.is_empty() => rsx! {
+            BudgetScreenState::Empty => rsx! {
                 p { class: "muted", "No budgets yet." }
             },
-            Some(Ok(list)) => rsx! {
+            BudgetScreenState::Ready(list) => rsx! {
                 ul { class: "cards",
-                    for budget in list.clone() {
+                    for budget in list.iter().cloned() {
                         BudgetCard { key: "{budget.id:?}", budget }
                     }
                 }
@@ -163,5 +179,31 @@ mod tests {
     #[test]
     fn a_zero_total_does_not_divide_by_zero() {
         assert_eq!(spent_percent(&budget("0", "0", "0")), 0);
+    }
+
+    #[test]
+    fn loading_state_is_reported_before_data_arrives() {
+        let snapshot: Option<Result<Vec<BudgetOutputDto>, ClientError>> = None;
+        assert!(matches!(budget_screen_state(&snapshot), BudgetScreenState::Loading));
+    }
+
+    #[test]
+    fn empty_state_is_reported_for_an_empty_list() {
+        let snapshot = Some(Ok(Vec::<BudgetOutputDto>::new()));
+        assert!(matches!(budget_screen_state(&snapshot), BudgetScreenState::Empty));
+    }
+
+    #[test]
+    fn ready_state_exposes_the_received_cards() {
+        let snapshot = Some(Ok(vec![budget("500", "100", "400")]));
+        match budget_screen_state(&snapshot) {
+            BudgetScreenState::Ready(list) => assert_eq!(list.len(), 1),
+            _ => panic!("expected ready state"),
+        }
+    }
+
+    #[test]
+    fn negative_spent_is_clamped_to_zero_for_the_bar() {
+        assert_eq!(spent_percent(&budget("500", "-10", "510")), 0);
     }
 }
