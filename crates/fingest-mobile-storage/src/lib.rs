@@ -152,6 +152,7 @@ impl Clock for DeviceClock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::rc::Rc;
     use fingest_contracts::UserDto;
 
     fn session(token: &str) -> Session {
@@ -235,5 +236,40 @@ mod tests {
         assert_eq!(store.load().unwrap().token, "token-abc");
         // Nothing was persisted, so a fresh process starts signed out.
         assert!(KeystoreSessionStore::new(RefusingStore).load().is_none());
+    }
+
+    #[derive(Default, Clone)]
+    struct SharedSecretStore(Rc<RefCell<Option<String>>>);
+
+    impl SecretStore for SharedSecretStore {
+        fn read(&self) -> Option<String> {
+            self.0.borrow().clone()
+        }
+
+        fn write(&self, value: &str) -> Result<(), SecretError> {
+            *self.0.borrow_mut() = Some(value.to_owned());
+            Ok(())
+        }
+
+        fn clear(&self) {
+            *self.0.borrow_mut() = None;
+        }
+    }
+
+    /// A restart is modelled as a fresh `KeystoreSessionStore` over the same secure backend.
+    #[test]
+    fn a_saved_session_survives_restart_and_logout_clears_the_next_launch() {
+        let secrets = SharedSecretStore::default();
+
+        let first_run = KeystoreSessionStore::new(secrets.clone());
+        first_run.save(&session("token-abc"));
+
+        let second_run = KeystoreSessionStore::new(secrets.clone());
+        assert_eq!(second_run.load().unwrap().token, "token-abc");
+
+        second_run.clear();
+
+        let third_run = KeystoreSessionStore::new(secrets);
+        assert!(third_run.load().is_none());
     }
 }
