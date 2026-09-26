@@ -67,5 +67,7 @@ Verified end to end in the browser: login and session restore, categories, users
 expenses. Verified on device: login, wallet list and the entry sheet.
 
 Not yet verified at runtime, though compiling and unit-tested: the budgets screens on both
-clients, and whether the Android Keystore adapter survives an app restart. The capability gate has
-no gated module exercising it yet — every module currently ships as core.
+clients. The capability gate has no gated module exercising it yet — every module currently ships
+as core.
+
+Android Keystore restart verification is documented in `ANDROID_KEYSTORE_VERIFICATION.md`.
