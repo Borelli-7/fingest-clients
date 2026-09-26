@@ -1,8 +1,8 @@
 use dioxus::prelude::*;
 
 use crate::{
-    budgets::Budgets, categories::Categories, forecast::Forecast, home::Home, login::Login, not_found::NotFound,
-    shell::Shell, users::Users, wallet_detail::WalletDetail, wallets::Wallets,
+    budgets::Budgets, categories::Categories, forecast::Forecast, home::Home, login::Login,
+    not_found::NotFound, shell::Shell, users::Users, wallet_detail::WalletDetail, wallets::Wallets,
 };
 
 /// Every path the client answers.

@@ -152,8 +152,8 @@ impl Clock for DeviceClock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::rc::Rc;
     use fingest_contracts::UserDto;
+    use std::rc::Rc;
 
     fn session(token: &str) -> Session {
         Session {
