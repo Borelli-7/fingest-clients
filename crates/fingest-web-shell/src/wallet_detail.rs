@@ -3,7 +3,7 @@ use fingest_client_ports::ClientEvent;
 use fingest_client_view::{
     app_context,
     category::{find_category, option_value},
-    format_money, use_event_refresh,
+    describe, format_money, use_event_refresh,
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
 use fingest_contracts::{ExpenseDto, WalletDto};
@@ -105,7 +105,7 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
             let money = match parse_money(&amount(), &wallet_currency) {
                 Ok(money) => money,
                 Err(failure) => {
-                    error.set(Some(failure.message().to_owned()));
+                    error.set(Some(describe(&failure)));
                     return;
                 }
             };
@@ -146,7 +146,7 @@ fn ExpenseForm(wallet: WalletDto) -> Element {
                         amount.set(String::new());
                         description.set(String::new());
                     }
-                    Err(failure) => error.set(Some(failure.message().to_owned())),
+                    Err(failure) => error.set(Some(describe(&failure))),
                 }
 
                 busy.set(false);
@@ -228,7 +228,7 @@ fn ExpenseList(wallet_id: i32) -> Element {
         match &*expenses.read_unchecked() {
             None => rsx! { p { class: "muted", "Loading…" } },
             Some(Err(error)) => rsx! {
-                p { class: "error", role: "alert", "{error.message()}" }
+                p { class: "error", role: "alert", "{describe(error)}" }
             },
             Some(Ok(list)) if list.is_empty() => rsx! {
                 p { class: "muted", "Nothing recorded yet." }
@@ -274,7 +274,7 @@ fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
                 .delete_expense(&session, &login, wallet_id, expense_id)
                 .await
             {
-                error.set(Some(failure.message().to_owned()));
+                error.set(Some(describe(&failure)));
             }
         });
     };
