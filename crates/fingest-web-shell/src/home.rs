@@ -5,11 +5,6 @@ use fingest_client_view::app_context;
 #[component]
 pub fn Home() -> Element {
     let context = app_context();
-    let Some(session) = context.session.read().clone() else {
-        return rsx! {};
-    };
-
-    let modules = context.modules.enabled(&context.capabilities);
 
     // The only authenticated call in this phase. It is what turns a stale token into a 401,
     // which the transport announces and the composition root acts on — so the guard chain is
@@ -19,6 +14,13 @@ pub fn Home() -> Element {
         let auth = auth.clone();
         async move { auth.verify().await }
     });
+
+    // Hooks above, branches below: Dioxus pairs hooks by call order on every render.
+    let Some(session) = context.session.read().clone() else {
+        return rsx! {};
+    };
+
+    let modules = context.modules.enabled(&context.capabilities);
 
     rsx! {
         h1 { "Signed in as {session.user.login}" }
