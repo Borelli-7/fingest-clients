@@ -41,7 +41,9 @@ pub fn Tabs() -> Element {
             main { class: "screen", Outlet::<Route> {} }
             nav { class: "tabbar",
                 for entry in entries {
-                    a { key: "{entry.path}", class: "tab", href: "{entry.path}", "{entry.label}" }
+                    if let Some(route) = Route::for_nav(entry.path) {
+                        Link { key: "{entry.path}", class: "tab", to: route, "{entry.label}" }
+                    }
                 }
                 button { class: "tab", r#type: "button", onclick: sign_out, "Sign out" }
             }
