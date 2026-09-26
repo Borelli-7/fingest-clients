@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::routes::Route;
-use fingest_client_view::{app_context, describe};
+use fingest_client_view::{app_context, describe, hold};
 
 #[component]
 pub fn Login() -> Element {
@@ -9,7 +9,7 @@ pub fn Login() -> Element {
     let mut login = use_signal(String::new);
     let mut password = use_signal(String::new);
     let mut error = use_signal(|| None::<String>);
-    let mut submitting = use_signal(|| false);
+    let submitting = use_signal(|| false);
 
     let navigator = use_navigator();
 
@@ -28,9 +28,11 @@ pub fn Login() -> Element {
 
         let context = app_context();
         let mut session = context.session;
+        error.set(None);
+        let busy_guard = hold(submitting);
+
         spawn(async move {
-            submitting.set(true);
-            error.set(None);
+            let _busy = busy_guard;
 
             match context.auth.login(&login(), &password()).await {
                 Ok(started) => {
@@ -45,8 +47,6 @@ pub fn Login() -> Element {
                     password.set(String::new());
                 }
             }
-
-            submitting.set(false);
         });
     };
 

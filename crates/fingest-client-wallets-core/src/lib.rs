@@ -52,6 +52,18 @@ impl WalletUseCase {
         self.api.list(login).await
     }
 
+    /// One wallet by id. `Ok(None)` means the list loaded and the id is not in it, which a
+    /// screen must show differently from a failed request.
+    pub async fn find(
+        &self,
+        session: &Session,
+        login: &str,
+        wallet_id: i32,
+    ) -> Result<Option<WalletDto>, ClientError> {
+        let wallets = self.list(session, login).await?;
+        Ok(wallets.into_iter().find(|w| w.id == Some(wallet_id)))
+    }
+
     pub async fn create(
         &self,
         session: &Session,
@@ -378,6 +390,36 @@ mod tests {
 
         assert!(matches!(err, ClientError::Forbidden(_)));
         assert_eq!(api.calls(), 0);
+    }
+
+    #[test]
+    fn finding_a_listed_wallet_returns_it() {
+        let (wallets, _) = use_case(StubWalletsApi::ok());
+
+        let found = block_on(wallets.find(&session("bob", false), "bob", 1)).unwrap();
+
+        assert_eq!(found.and_then(|w| w.id), Some(1));
+    }
+
+    /// A deep link to a deleted wallet must read as "not found", not as an endless load.
+    #[test]
+    fn an_unknown_wallet_id_is_absent_rather_than_an_error() {
+        let (wallets, _) = use_case(StubWalletsApi::ok());
+
+        assert_eq!(
+            block_on(wallets.find(&session("bob", false), "bob", 999)),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn a_failed_lookup_keeps_its_error() {
+        let api = StubWalletsApi::failing(ClientError::Network("offline".into()));
+        let (wallets, _) = use_case(api);
+
+        let err = block_on(wallets.find(&session("bob", false), "bob", 1)).unwrap_err();
+
+        assert!(matches!(err, ClientError::Network(_)));
     }
 
     #[test]

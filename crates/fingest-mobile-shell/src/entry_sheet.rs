@@ -1,12 +1,12 @@
 use dioxus::prelude::*;
+use fingest_client_ports::ClientEvent;
 use fingest_client_view::{
-    app_context,
-    category::{find_category, option_value},
-    describe, use_event_refresh,
+    NOT_SIGNED_IN, app_context,
+    category::{find_category, option_value, picker},
+    describe, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
 use fingest_contracts::WalletDto;
-use fingest_client_ports::ClientEvent;
 
 /// Recording an entry, in a sheet rather than the web client's inline row.
 ///
@@ -19,7 +19,7 @@ pub fn EntrySheet(wallet_id: i32, wallet: WalletDto, open: Signal<bool>) -> Elem
     let catalog = context.catalog.clone();
     let categories = use_resource(move || {
         let catalog = catalog.clone();
-        async move { catalog.list().await.unwrap_or_default() }
+        async move { catalog.list().await }
     });
     use_event_refresh(categories, |event| {
         matches!(event, ClientEvent::CategoryChanged)
@@ -30,11 +30,12 @@ pub fn EntrySheet(wallet_id: i32, wallet: WalletDto, open: Signal<bool>) -> Elem
     let mut date = use_signal(|| context.clock.today().to_string());
     let mut selected = use_signal(String::new);
     let mut error = use_signal(|| None::<String>);
-    let mut busy = use_signal(|| false);
+    let busy = use_signal(|| false);
 
     let currency = wallet.amount.currency.to_string();
     let balance = wallet.amount.clone();
-    let options = categories.read_unchecked().clone().unwrap_or_default();
+    let categories_state = picker(categories.read_unchecked().as_ref());
+    let options = categories_state.options.clone();
 
     let submit = {
         let options = options.clone();
@@ -67,12 +68,15 @@ pub fn EntrySheet(wallet_id: i32, wallet: WalletDto, open: Signal<bool>) -> Elem
 
             let balance = balance.clone();
             let context = app_context();
-            spawn(async move {
-                busy.set(true);
-                error.set(None);
+            let Some(session) = context.session.read().clone() else {
+                error.set(Some(NOT_SIGNED_IN.to_owned()));
+                return;
+            };
+            error.set(None);
+            let busy_guard = hold(busy);
 
-                let session = context.session.read().clone();
-                let Some(session) = session else { return };
+            spawn(async move {
+                let _busy = busy_guard;
                 let login = session.login().to_owned();
 
                 let result = context
@@ -103,8 +107,6 @@ pub fn EntrySheet(wallet_id: i32, wallet: WalletDto, open: Signal<bool>) -> Elem
                     }
                     Err(failure) => error.set(Some(describe(&failure))),
                 }
-
-                busy.set(false);
             });
         }
     };
@@ -121,6 +123,9 @@ pub fn EntrySheet(wallet_id: i32, wallet: WalletDto, open: Signal<bool>) -> Elem
 
             form { class: "stack", onsubmit: submit,
                 if let Some(message) = error() {
+                    p { class: "error", role: "alert", "{message}" }
+                }
+                if let Some(message) = categories_state.error {
                     p { class: "error", role: "alert", "{message}" }
                 }
 
@@ -164,7 +169,7 @@ pub fn EntrySheet(wallet_id: i32, wallet: WalletDto, open: Signal<bool>) -> Elem
                     }
                 }
 
-                button { class: "button", r#type: "submit", disabled: busy(),
+                button { class: "button", r#type: "submit", disabled: busy() || !categories_state.ready,
                     if busy() { "Recording…" } else { "Record" }
                 }
                 button {

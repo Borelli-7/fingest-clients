@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
-use fingest_client_ports::ClientEvent;
-use fingest_client_view::{app_context, describe, format_money, use_event_refresh};
+use fingest_client_ports::{ClientError, ClientEvent};
+use fingest_client_view::{NOT_SIGNED_IN, app_context, describe, format_money, use_event_refresh};
 use fingest_contracts::{ExpenseDto, WalletDto};
 use fingest_kernel::DateRange;
 
@@ -94,14 +94,11 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
         let use_case = use_case.clone();
         let session = session_signal.read().clone();
         async move {
-            let session = session?;
+            let Some(session) = session else {
+                return Err(ClientError::Unauthenticated(NOT_SIGNED_IN.to_owned()));
+            };
             let login = session.login().to_owned();
-            use_case
-                .list(&session, &login)
-                .await
-                .ok()?
-                .into_iter()
-                .find(|w| w.id == Some(wallet_id))
+            use_case.find(&session, &login, wallet_id).await
         }
     });
 
@@ -112,21 +109,28 @@ pub fn WalletDetail(wallet_id: i32) -> Element {
         )
     });
 
-    let current = wallet.read_unchecked().clone().flatten();
+    let current = wallet.read_unchecked().clone();
     let sheet_open = use_signal(|| false);
 
     rsx! {
         header { class: "bar",
             Link { class: "back", to: Route::Wallets {}, "‹" }
             match &current {
-                Some(wallet) => rsx! { h1 { "{wallet.name}" } },
-                None => rsx! { h1 { "…" } },
+                Some(Ok(Some(wallet))) => rsx! { h1 { "{wallet.name}" } },
+                Some(Ok(None)) => rsx! { h1 { "Not found" } },
+                _ => rsx! { h1 { "…" } },
             }
         }
 
         match current {
             None => rsx! { p { class: "muted", "Loading…" } },
-            Some(wallet) => rsx! {
+            Some(Err(error)) => rsx! {
+                p { class: "error", role: "alert", "{describe(&error)}" }
+            },
+            Some(Ok(None)) => rsx! {
+                p { class: "muted", "This wallet no longer exists." }
+            },
+            Some(Ok(Some(wallet))) => rsx! {
                 p { class: "balance", "{format_money(&wallet.amount)}" }
                 Entries { wallet_id }
                 button {

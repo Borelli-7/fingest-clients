@@ -1,5 +1,8 @@
 use fingest_client_ports::ClientError;
 
+/// Shown when a form is submitted after the session lapsed; matches the transport's wording.
+pub const NOT_SIGNED_IN: &str = "You are not signed in";
+
 /// Turns a failure into something worth showing a person.
 ///
 /// Transport failures are the client's problem, not the user's, so they are reworded.

@@ -1,8 +1,8 @@
 use dioxus::prelude::*;
 
 use crate::{
-    budgets::Budgets, categories::Categories, forecast::Forecast, home::Home, login::Login, not_found::NotFound,
-    shell::Shell, users::Users, wallet_detail::WalletDetail, wallets::Wallets,
+    budgets::Budgets, categories::Categories, forecast::Forecast, home::Home, login::Login,
+    not_found::NotFound, shell::Shell, users::Users, wallet_detail::WalletDetail, wallets::Wallets,
 };
 
 /// Every path the client answers.
@@ -41,4 +41,14 @@ pub enum Route {
     #[end_layout]
     #[route("/:..segments")]
     NotFound { segments: Vec<String> },
+}
+
+impl Route {
+    /// The screen a nav entry's path names, or `None` when only the catch-all would answer.
+    pub fn for_nav(path: &str) -> Option<Self> {
+        match path.parse::<Self>() {
+            Ok(Self::NotFound { .. }) | Err(_) => None,
+            Ok(route) => Some(route),
+        }
+    }
 }

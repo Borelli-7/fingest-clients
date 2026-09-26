@@ -32,5 +32,9 @@ fingest-client-identity-core = { path = "../fingest-client-identity-core", featu
 ] }
 futures = { workspace = true }
 
+# Drives a real request against a local listener that never answers.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { version = "1", default-features = false, features = ["rt"] }
+
 [lints]
 workspace = true
