@@ -52,7 +52,10 @@ Validation checklist when adding one:
 
 `fingest-contracts` and `fingest-kernel` are pulled from the API repository over git rather than
 copied, so a change to the wire shape breaks compilation here instead of surfacing as a runtime
-mismatch. `Cargo.lock` pins the exact commit.
+mismatch. Both are pinned to an immutable git `rev` in `Cargo.toml` and tracked in `Cargo.lock`.
+
+The bump process, review checklist and validation commands are documented in
+`GIT_DEPENDENCY_UPGRADE.md`.
 
 ## Building
 

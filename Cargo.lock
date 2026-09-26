@@ -1844,7 +1844,7 @@ dependencies = [
 [[package]]
 name = "fingest-contracts"
 version = "0.1.0"
-source = "git+https://github.com/Borelli-7/fingest-rs-v2.git?branch=main#6c268a0f5569e1b8658d6efd1f96715ce89b48e3"
+source = "git+https://github.com/Borelli-7/fingest-rs-v2.git?rev=6c268a0f5569e1b8658d6efd1f96715ce89b48e3#6c268a0f5569e1b8658d6efd1f96715ce89b48e3"
 dependencies = [
  "chrono",
  "fingest-kernel",
@@ -1854,7 +1854,7 @@ dependencies = [
 [[package]]
 name = "fingest-kernel"
 version = "0.1.0"
-source = "git+https://github.com/Borelli-7/fingest-rs-v2.git?branch=main#6c268a0f5569e1b8658d6efd1f96715ce89b48e3"
+source = "git+https://github.com/Borelli-7/fingest-rs-v2.git?rev=6c268a0f5569e1b8658d6efd1f96715ce89b48e3#6c268a0f5569e1b8658d6efd1f96715ce89b48e3"
 dependencies = [
  "async-trait",
  "bigdecimal",
