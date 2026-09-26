@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_planning_core::BudgetUseCase;
-use fingest_client_ports::{BudgetFilter, ClientEvent};
+use fingest_client_ports::{BudgetFilter, ClientError, ClientEvent};
 use fingest_client_view::{
     app_context,
     category::{find_category, option_value},
@@ -10,6 +10,34 @@ use fingest_client_wallets_core::parse_money;
 use fingest_contracts::BudgetOutputDto;
 use fingest_kernel::DateRange;
 use std::rc::Rc;
+
+enum BudgetScreenState<'a> {
+    Loading,
+    Error(&'a ClientError),
+    Empty,
+    Ready(&'a [BudgetOutputDto]),
+}
+
+fn budget_screen_state(snapshot: &Option<Result<Vec<BudgetOutputDto>, ClientError>>) -> BudgetScreenState<'_> {
+    match snapshot {
+        None => BudgetScreenState::Loading,
+        Some(Err(error)) => BudgetScreenState::Error(error),
+        Some(Ok(list)) if list.is_empty() => BudgetScreenState::Empty,
+        Some(Ok(list)) => BudgetScreenState::Ready(list.as_slice()),
+    }
+}
+
+fn parse_period(start: &str, end: &str) -> Result<DateRange, String> {
+    let (Ok(from), Ok(to)) = (start.parse(), end.parse()) else {
+        return Err("The dates are invalid".to_owned());
+    };
+
+    if to < from {
+        return Err("The period end must be on or after the start".to_owned());
+    }
+
+    Ok(DateRange::new(Some(from), Some(to)))
+}
 
 /// Budgets for the signed-in account.
 ///
@@ -47,15 +75,15 @@ pub fn Budgets() -> Element {
         h1 { "Budgets" }
         BudgetForm {}
 
-        match &*budgets.read_unchecked() {
-            None => rsx! { p { class: "muted", "Loading…" } },
-            Some(Err(error)) => rsx! {
+        match budget_screen_state(&budgets.read_unchecked()) {
+            BudgetScreenState::Loading => rsx! { p { class: "muted", "Loading…" } },
+            BudgetScreenState::Error(error) => rsx! {
                 p { class: "error", role: "alert", "{describe(error)}" }
             },
-            Some(Ok(list)) if list.is_empty() => rsx! {
+            BudgetScreenState::Empty => rsx! {
                 p { class: "muted", "No budgets yet." }
             },
-            Some(Ok(list)) => rsx! {
+            BudgetScreenState::Ready(list) => rsx! {
                 table {
                     thead {
                         tr {
@@ -68,7 +96,7 @@ pub fn Budgets() -> Element {
                         }
                     }
                     tbody {
-                        for budget in list.clone() {
+                        for budget in list.iter().cloned() {
                             BudgetRow { key: "{budget.id:?}", budget }
                         }
                     }
@@ -122,9 +150,12 @@ fn BudgetForm() -> Element {
                 }
             };
 
-            let (Ok(from), Ok(to)) = (start().parse(), end().parse()) else {
-                error.set(Some("The dates are invalid".to_owned()));
-                return;
+            let period = match parse_period(&start(), &end()) {
+                Ok(period) => period,
+                Err(failure) => {
+                    error.set(Some(failure));
+                    return;
+                }
             };
 
             let context = app_context();
@@ -143,7 +174,7 @@ fn BudgetForm() -> Element {
                         &login,
                         category,
                         amount,
-                        DateRange::new(Some(from), Some(to)),
+                        period,
                     )
                     .await;
 
@@ -205,6 +236,70 @@ fn BudgetForm() -> Element {
         if let Some(message) = error() {
             p { class: "error", role: "alert", "{message}" }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fingest_kernel::{CategoryRef, Money};
+
+    fn money(amount: &str) -> Money {
+        parse_money(amount, "PLN").unwrap()
+    }
+
+    fn budget() -> BudgetOutputDto {
+        BudgetOutputDto {
+            id: Some(1),
+            category: CategoryRef {
+                name: "Food".into(),
+                profit: false,
+            },
+            total: money("100"),
+            date_range: DateRange::new(None, None),
+            spent: money("10"),
+            left: money("90"),
+        }
+    }
+
+    #[test]
+    fn loading_state_is_reported_before_data_arrives() {
+        let snapshot: Option<Result<Vec<BudgetOutputDto>, ClientError>> = None;
+        assert!(matches!(budget_screen_state(&snapshot), BudgetScreenState::Loading));
+    }
+
+    #[test]
+    fn empty_state_is_reported_for_an_empty_list() {
+        let snapshot = Some(Ok(Vec::<BudgetOutputDto>::new()));
+        assert!(matches!(budget_screen_state(&snapshot), BudgetScreenState::Empty));
+    }
+
+    #[test]
+    fn ready_state_exposes_the_received_rows() {
+        let snapshot = Some(Ok(vec![budget()]));
+        match budget_screen_state(&snapshot) {
+            BudgetScreenState::Ready(list) => assert_eq!(list.len(), 1),
+            _ => panic!("expected ready state"),
+        }
+    }
+
+    #[test]
+    fn invalid_date_strings_are_rejected_before_submit() {
+        let failure = parse_period("2026-02-31", "2026-03-01").unwrap_err();
+        assert_eq!(failure, "The dates are invalid");
+    }
+
+    #[test]
+    fn an_inverted_period_is_rejected_before_submit() {
+        let failure = parse_period("2026-03-02", "2026-03-01").unwrap_err();
+        assert_eq!(failure, "The period end must be on or after the start");
+    }
+
+    #[test]
+    fn a_valid_period_is_accepted() {
+        let period = parse_period("2026-03-01", "2026-03-31").unwrap();
+        assert_eq!(period.start.to_string(), "2026-03-01");
+        assert_eq!(period.end.to_string(), "2026-03-31");
     }
 }
 
