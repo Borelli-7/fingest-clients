@@ -3,7 +3,7 @@ use fingest_client_planning_core::BudgetUseCase;
 use fingest_client_ports::{BudgetFilter, ClientError, ClientEvent};
 use fingest_client_view::{
     NOT_SIGNED_IN, app_context,
-    category::{find_category, option_value},
+    category::{find_category, option_value, picker},
     describe, format_money, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::parse_money;
@@ -115,7 +115,7 @@ fn BudgetForm() -> Element {
     let catalog = context.catalog.clone();
     let categories = use_resource(move || {
         let catalog = catalog.clone();
-        async move { catalog.list().await.unwrap_or_default() }
+        async move { catalog.list().await }
     });
     use_event_refresh(categories, |event| {
         matches!(event, ClientEvent::CategoryChanged)
@@ -129,7 +129,8 @@ fn BudgetForm() -> Element {
     let mut error = use_signal(|| None::<String>);
     let busy = use_signal(|| false);
 
-    let options = categories.read_unchecked().clone().unwrap_or_default();
+    let categories_state = picker(categories.read_unchecked().as_ref());
+    let options = categories_state.options.clone();
 
     let submit = {
         let options = options.clone();
@@ -228,7 +229,10 @@ fn BudgetForm() -> Element {
                 value: "{end}",
                 oninput: move |event| end.set(event.value()),
             }
-            button { r#type: "submit", disabled: busy(), "Add budget" }
+            button { r#type: "submit", disabled: busy() || !categories_state.ready, "Add budget" }
+        }
+        if let Some(message) = categories_state.error {
+            p { class: "error", role: "alert", "{message}" }
         }
         if let Some(message) = error() {
             p { class: "error", role: "alert", "{message}" }

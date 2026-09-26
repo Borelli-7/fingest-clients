@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
 use fingest_client_view::{
     NOT_SIGNED_IN, app_context,
-    category::{find_category, option_value},
+    category::{find_category, option_value, picker},
     describe, hold, use_event_refresh,
 };
 use fingest_client_wallets_core::{NewExpense, parse_money};
@@ -19,7 +19,7 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
     let catalog = context.catalog.clone();
     let categories = use_resource(move || {
         let catalog = catalog.clone();
-        async move { catalog.list().await.unwrap_or_default() }
+        async move { catalog.list().await }
     });
     use_event_refresh(categories, |event| {
         matches!(event, ClientEvent::CategoryChanged)
@@ -35,7 +35,8 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
     let currency = wallet.amount.currency.to_string();
     let balance = wallet.amount.clone();
     let wallet_id = wallet.id.unwrap_or_default();
-    let options = categories.read_unchecked().clone().unwrap_or_default();
+    let categories_state = picker(categories.read_unchecked().as_ref());
+    let options = categories_state.options.clone();
 
     let submit = {
         let options = options.clone();
@@ -125,6 +126,9 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
                 if let Some(message) = error() {
                     p { class: "error", role: "alert", "{message}" }
                 }
+                if let Some(message) = categories_state.error {
+                    p { class: "error", role: "alert", "{message}" }
+                }
 
                 div { class: "field-row",
                     input {
@@ -166,7 +170,7 @@ pub fn EntrySheet(wallet: WalletDto, open: Signal<bool>) -> Element {
                     }
                 }
 
-                button { class: "button", r#type: "submit", disabled: busy(),
+                button { class: "button", r#type: "submit", disabled: busy() || !categories_state.ready,
                     if busy() { "Recording…" } else { "Record" }
                 }
                 button {
