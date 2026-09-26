@@ -149,3 +149,8 @@ mod tests {
         assert_eq!(bus.subscriber_count(), 0);
     }
 }
+
+#[test]
+fn ci_red_probe_must_fail() {
+    panic!("deliberate failure to prove CI goes red");
+}
