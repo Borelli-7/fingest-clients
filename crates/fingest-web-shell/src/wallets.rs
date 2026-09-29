@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
 use fingest_client_view::{
-    NOT_SIGNED_IN, app_context, describe, format_money, hold, use_event_refresh,
+    NOT_SIGNED_IN, app_context, describe, format_money, hold, start_action, use_event_refresh,
 };
 use fingest_client_wallets_core::parse_money;
 use fingest_contracts::WalletDto;
@@ -156,6 +156,7 @@ fn WalletRow(wallet: WalletDto) -> Element {
     let mut renaming = use_signal(|| false);
     let mut draft = use_signal(|| wallet.name.clone());
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
 
     // Without an id nothing on the server can be addressed, so nothing is offered.
     let Some(wallet_id) = wallet.id else {
@@ -171,10 +172,13 @@ fn WalletRow(wallet: WalletDto) -> Element {
     let commit = move |event: FormEvent| {
         event.prevent_default();
         let context = app_context();
+        let Some((busy_guard, session)) = start_action(busy, error, context.session.read().clone())
+        else {
+            return;
+        };
 
         spawn(async move {
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             match context
@@ -193,9 +197,13 @@ fn WalletRow(wallet: WalletDto) -> Element {
 
     let remove = move |_| {
         let context = app_context();
+        let Some((busy_guard, session)) = start_action(busy, error, context.session.read().clone())
+        else {
+            return;
+        };
+
         spawn(async move {
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             if let Err(failure) = context.wallets.delete(&session, &login, wallet_id).await {
@@ -211,6 +219,7 @@ fn WalletRow(wallet: WalletDto) -> Element {
                     form { onsubmit: commit,
                         input {
                             "aria-label": "New name for {wallet.name}",
+                            disabled: busy(),
                             value: "{draft}",
                             oninput: move |event| draft.set(event.value()),
                         }
@@ -224,10 +233,10 @@ fn WalletRow(wallet: WalletDto) -> Element {
             }
             td { "{format_money(&wallet.amount)}" }
             td { class: "actions",
-                button { class: "link", onclick: move |_| renaming.toggle(),
+                button { class: "link", disabled: busy(), onclick: move |_| renaming.toggle(),
                     if renaming() { "Cancel" } else { "Rename" }
                 }
-                button { class: "link danger", onclick: remove, "Delete" }
+                button { class: "link danger", disabled: busy(), onclick: remove, "Delete" }
             }
         }
     }

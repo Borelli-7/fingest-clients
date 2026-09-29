@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::ClientEvent;
-use fingest_client_view::{app_context, describe, hold, use_event_refresh};
+use fingest_client_view::{app_context, claim, describe, hold, use_event_refresh};
 use fingest_contracts::CategoryDto;
 
 /// Shared reference data. Listing is public on the server; everything else is admin-only,
@@ -118,16 +118,21 @@ fn CategoryRow(category: CategoryDto, is_admin: bool) -> Element {
     let mut renaming = use_signal(|| false);
     let mut draft = use_signal(|| category.name.clone());
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
 
     let name = category.name.clone();
     let profit = category.profit;
 
     let commit_rename = move |event: FormEvent| {
         event.prevent_default();
+        let Some(busy_guard) = claim(busy) else {
+            return;
+        };
         let catalog = app_context().catalog;
         let name = name.clone();
 
         spawn(async move {
+            let _busy = busy_guard;
             match catalog.rename(&name, profit, &draft()).await {
                 Ok(_) => {
                     renaming.set(false);
@@ -140,10 +145,14 @@ fn CategoryRow(category: CategoryDto, is_admin: bool) -> Element {
 
     let name_for_delete = category.name.clone();
     let delete = move |_| {
+        let Some(busy_guard) = claim(busy) else {
+            return;
+        };
         let catalog = app_context().catalog;
         let name = name_for_delete.clone();
 
         spawn(async move {
+            let _busy = busy_guard;
             if let Err(failure) = catalog.delete(&name, profit).await {
                 error.set(Some(describe(&failure)));
             }
@@ -157,6 +166,7 @@ fn CategoryRow(category: CategoryDto, is_admin: bool) -> Element {
                     form { onsubmit: commit_rename,
                         input {
                             "aria-label": "New name for {category.name}",
+                            disabled: busy(),
                             value: "{draft}",
                             oninput: move |event| draft.set(event.value()),
                         }
@@ -171,10 +181,10 @@ fn CategoryRow(category: CategoryDto, is_admin: bool) -> Element {
             td { class: "muted", if category.profit { "Income" } else { "Expense" } }
             if is_admin {
                 td { class: "actions",
-                    button { class: "link", onclick: move |_| renaming.toggle(),
+                    button { class: "link", disabled: busy(), onclick: move |_| renaming.toggle(),
                         if renaming() { "Cancel" } else { "Rename" }
                     }
-                    button { class: "link danger", onclick: delete, "Delete" }
+                    button { class: "link danger", disabled: busy(), onclick: delete, "Delete" }
                 }
             }
         }

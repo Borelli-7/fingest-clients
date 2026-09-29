@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 use fingest_client_ports::{ClientError, ClientEvent};
-use fingest_client_view::{NOT_SIGNED_IN, app_context, describe, format_money, use_event_refresh};
+use fingest_client_view::{
+    NOT_SIGNED_IN, app_context, describe, format_money, start_action, use_event_refresh,
+};
 use fingest_contracts::{ExpenseDto, WalletDto};
 use fingest_kernel::DateRange;
 
@@ -195,6 +197,7 @@ fn Entries(wallet_id: i32) -> Element {
 #[component]
 fn EntryRow(wallet_id: i32, expense: ExpenseDto) -> Element {
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
 
     let Some(expense_id) = expense.id else {
         return rsx! {
@@ -210,9 +213,13 @@ fn EntryRow(wallet_id: i32, expense: ExpenseDto) -> Element {
 
     let remove = move |_| {
         let context = app_context();
+        let Some((busy_guard, session)) = start_action(busy, error, context.session.read().clone())
+        else {
+            return;
+        };
+
         spawn(async move {
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             // The server returns the amount to the balance; the event is what makes the
@@ -238,7 +245,7 @@ fn EntryRow(wallet_id: i32, expense: ExpenseDto) -> Element {
                     "{expense.date} · {expense.category.name}"
                     if expense.category.profit { " · income" }
                 }
-                button { class: "link danger", onclick: remove, "Delete" }
+                button { class: "link danger", disabled: busy(), onclick: remove, "Delete" }
             }
             if let Some(message) = error() {
                 p { class: "error", role: "alert", "{message}" }

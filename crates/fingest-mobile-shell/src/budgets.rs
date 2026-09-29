@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::{BudgetFilter, ClientError, ClientEvent};
-use fingest_client_view::{app_context, describe, format_money, use_event_refresh};
+use fingest_client_view::{app_context, describe, format_money, start_action, use_event_refresh};
 use fingest_contracts::BudgetOutputDto;
 
 enum BudgetScreenState<'a> {
@@ -77,6 +77,7 @@ pub fn Budgets() -> Element {
 #[component]
 fn BudgetCard(budget: BudgetOutputDto) -> Element {
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
 
     let Some(budget_id) = budget.id else {
         return rsx! {
@@ -91,9 +92,13 @@ fn BudgetCard(budget: BudgetOutputDto) -> Element {
 
     let remove = move |_| {
         let context = app_context();
+        let Some((busy_guard, session)) = start_action(busy, error, context.session.read().clone())
+        else {
+            return;
+        };
+
         spawn(async move {
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             if let Err(failure) = context.budgets.delete(&session, &login, budget_id).await {
@@ -115,7 +120,7 @@ fn BudgetCard(budget: BudgetOutputDto) -> Element {
                 span { class: "muted small",
                     "{format_money(&budget.spent)} of {format_money(&budget.total)}"
                 }
-                button { class: "link danger", onclick: remove, "Delete" }
+                button { class: "link danger", disabled: busy(), onclick: remove, "Delete" }
             }
             p { class: "muted small",
                 "{budget.date_range.start} → {budget.date_range.end}"

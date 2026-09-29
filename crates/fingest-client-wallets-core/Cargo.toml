@@ -15,13 +15,13 @@ fingest-kernel = { workspace = true }
 bigdecimal = { workspace = true }
 chrono = { workspace = true }
 async-trait = { workspace = true }
+futures = { workspace = true }
 
 [features]
 test-support = ["fingest-client-ports/test-support"]
 
 [dev-dependencies]
 fingest-client-ports = { path = "../fingest-client-ports", features = ["test-support"] }
-futures = { workspace = true }
 
 [lints]
 workspace = true
