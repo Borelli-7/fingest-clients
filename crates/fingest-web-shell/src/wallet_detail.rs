@@ -3,9 +3,9 @@ use fingest_client_ports::{ClientError, ClientEvent};
 use fingest_client_view::{
     NOT_SIGNED_IN, app_context,
     category::{find_category, option_value, picker},
-    describe, format_money, hold, use_event_refresh,
+    describe, format_money, hold, start_action, use_event_refresh,
 };
-use fingest_client_wallets_core::{NewExpense, parse_money};
+use fingest_client_wallets_core::{Breakdown, NewExpense, parse_money};
 use fingest_contracts::{ExpenseDto, WalletDto};
 use fingest_kernel::DateRange;
 
@@ -268,6 +268,7 @@ fn ExpenseList(wallet_id: i32) -> Element {
 #[component]
 fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
 
     let Some(expense_id) = expense.id else {
         return rsx! {
@@ -283,9 +284,13 @@ fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
 
     let remove = move |_| {
         let context = app_context();
+        let Some((busy_guard, session)) = start_action(busy, error, context.session.read().clone())
+        else {
+            return;
+        };
+
         spawn(async move {
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             // The server returns the amount to the balance; the event makes the header
@@ -315,7 +320,7 @@ fn ExpenseRow(wallet_id: i32, expense: ExpenseDto) -> Element {
             }
             td { "{format_money(&expense.amount)}" }
             td { class: "actions",
-                button { class: "link danger", onclick: remove, "Delete" }
+                button { class: "link danger", disabled: busy(), onclick: remove, "Delete" }
             }
         }
     }
@@ -337,16 +342,10 @@ fn Analytics(wallet_id: i32) -> Element {
                 return Err(ClientError::Unauthenticated(NOT_SIGNED_IN.to_owned()));
             };
             let login = session.login().to_owned();
-            let range = DateRange::new(None, None);
 
-            let counts = use_case
-                .counted_categories(&session, &login, wallet_id, &range)
-                .await?;
-            let highest = use_case
-                .highest_expense(&session, &login, wallet_id, &range)
-                .await?;
-
-            Ok((counts, highest))
+            use_case
+                .breakdown(&session, &login, wallet_id, &DateRange::new(None, None))
+                .await
         }
     });
 
@@ -363,7 +362,7 @@ fn Analytics(wallet_id: i32) -> Element {
             Some(Err(error)) => rsx! {
                 p { class: "error", role: "alert", "{describe(&error)}" }
             },
-            Some(Ok((counts, highest))) => {
+            Some(Ok(Breakdown { counts, highest })) => {
                 let mut rows: Vec<(String, i64)> = counts.into_iter().collect();
                 rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 

@@ -31,6 +31,13 @@ pub struct NewExpense {
     pub category: CategoryRef,
 }
 
+/// What a wallet's analytics section shows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Breakdown {
+    pub counts: HashMap<String, i64>,
+    pub highest: Option<ExpenseDto>,
+}
+
 pub struct WalletUseCase {
     api: Rc<dyn WalletsApi>,
     events: Rc<dyn EventBus>,
@@ -178,6 +185,27 @@ impl WalletUseCase {
     ) -> Result<HashMap<String, i64>, ClientError> {
         authorise(session, login)?;
         self.api.counted_categories(login, wallet_id, range).await
+    }
+
+    /// Category counts and the largest entry, for a wallet's breakdown.
+    ///
+    /// The two requests are independent, so both are in flight before either is awaited:
+    /// awaiting them one after the other would cost the screen a second round trip.
+    pub async fn breakdown(
+        &self,
+        session: &Session,
+        login: &str,
+        wallet_id: i32,
+        range: &DateRange,
+    ) -> Result<Breakdown, ClientError> {
+        authorise(session, login)?;
+        let (counts, highest) = futures::future::try_join(
+            self.api.counted_categories(login, wallet_id, range),
+            self.api.highest_expense(login, wallet_id, range),
+        )
+        .await?;
+
+        Ok(Breakdown { counts, highest })
     }
 
     // --- expenses ---
@@ -541,5 +569,195 @@ mod tests {
         let patch = api.last_wallet_patch().unwrap();
         assert_eq!(patch.name.as_deref(), Some("Holiday"));
         assert!(patch.amount.is_none());
+    }
+
+    mod breakdown {
+        use super::*;
+        use std::cell::Cell;
+        use std::future::poll_fn;
+        use std::task::Poll;
+
+        use fingest_contracts::{
+            ExpenseInputRequest, SummaryDto, UpdateExpenseRequest, UpdateWalletRequest,
+        };
+
+        /// Neither analytics call answers until both have been started, so a sequential
+        /// `breakdown` never finishes; the poll budget turns that hang into a failure.
+        struct Rendezvous {
+            started: Cell<u32>,
+            polls: Cell<u32>,
+            counts_fail: bool,
+            highest_fail: bool,
+        }
+
+        impl Rendezvous {
+            fn new(counts_fail: bool, highest_fail: bool) -> Self {
+                Self {
+                    started: Cell::new(0),
+                    polls: Cell::new(0),
+                    counts_fail,
+                    highest_fail,
+                }
+            }
+
+            async fn wait_for_both(&self) {
+                self.started.set(self.started.get() + 1);
+                poll_fn(|cx| {
+                    if self.started.get() >= 2 {
+                        return Poll::Ready(());
+                    }
+                    self.polls.set(self.polls.get() + 1);
+                    assert!(
+                        self.polls.get() < 1_000,
+                        "the second analytics request never started: they run sequentially"
+                    );
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                })
+                .await;
+            }
+        }
+
+        fn fail() -> ClientError {
+            ClientError::Network("offline".into())
+        }
+
+        #[async_trait::async_trait(?Send)]
+        impl WalletsApi for Rendezvous {
+            async fn counted_categories(
+                &self,
+                _: &str,
+                _: i32,
+                _: &DateRange,
+            ) -> Result<HashMap<String, i64>, ClientError> {
+                self.wait_for_both().await;
+                if self.counts_fail {
+                    return Err(fail());
+                }
+                Ok(HashMap::from([("Food".to_owned(), 2)]))
+            }
+
+            async fn highest_expense(
+                &self,
+                _: &str,
+                _: i32,
+                _: &DateRange,
+            ) -> Result<Option<ExpenseDto>, ClientError> {
+                self.wait_for_both().await;
+                if self.highest_fail {
+                    return Err(fail());
+                }
+                Ok(None)
+            }
+
+            async fn list(&self, _: &str) -> Result<Vec<WalletDto>, ClientError> {
+                unreachable!()
+            }
+            async fn create(&self, _: &str, _: WalletDto) -> Result<WalletDto, ClientError> {
+                unreachable!()
+            }
+            async fn update(
+                &self,
+                _: &str,
+                _: i32,
+                _: UpdateWalletRequest,
+            ) -> Result<WalletDto, ClientError> {
+                unreachable!()
+            }
+            async fn delete(&self, _: &str, _: i32) -> Result<(), ClientError> {
+                unreachable!()
+            }
+            async fn summary(
+                &self,
+                _: &str,
+                _: i32,
+                _: &DateRange,
+            ) -> Result<SummaryDto, ClientError> {
+                unreachable!()
+            }
+            async fn list_expenses(
+                &self,
+                _: &str,
+                _: i32,
+                _: &DateRange,
+            ) -> Result<Vec<ExpenseDto>, ClientError> {
+                unreachable!()
+            }
+            async fn create_expense(
+                &self,
+                _: &str,
+                _: i32,
+                _: ExpenseInputRequest,
+            ) -> Result<ExpenseDto, ClientError> {
+                unreachable!()
+            }
+            async fn update_expense(
+                &self,
+                _: &str,
+                _: i32,
+                _: i32,
+                _: UpdateExpenseRequest,
+            ) -> Result<ExpenseDto, ClientError> {
+                unreachable!()
+            }
+            async fn delete_expense(&self, _: &str, _: i32, _: i32) -> Result<(), ClientError> {
+                unreachable!()
+            }
+        }
+
+        fn run(api: Rendezvous) -> (Result<Breakdown, ClientError>, u32) {
+            let api = Rc::new(api);
+            let wallets = WalletUseCase::new(api.clone(), Rc::new(RecordingBus::default()));
+            let result = block_on(wallets.breakdown(
+                &session("bob", false),
+                "bob",
+                1,
+                &DateRange::new(None, None),
+            ));
+            (result, api.started.get())
+        }
+
+        #[test]
+        fn both_requests_are_in_flight_together() {
+            let (result, started) = run(Rendezvous::new(false, false));
+
+            assert_eq!(started, 2);
+            assert_eq!(
+                result.unwrap(),
+                Breakdown {
+                    counts: HashMap::from([("Food".to_owned(), 2)]),
+                    highest: None,
+                }
+            );
+        }
+
+        #[test]
+        fn a_failed_count_fails_the_breakdown() {
+            let (result, _) = run(Rendezvous::new(true, false));
+            assert_eq!(result.unwrap_err(), fail());
+        }
+
+        #[test]
+        fn a_failed_highest_expense_fails_the_breakdown() {
+            let (result, _) = run(Rendezvous::new(false, true));
+            assert_eq!(result.unwrap_err(), fail());
+        }
+
+        #[test]
+        fn someone_elses_breakdown_is_refused_before_the_network() {
+            let api = Rc::new(Rendezvous::new(false, false));
+            let wallets = WalletUseCase::new(api.clone(), Rc::new(RecordingBus::default()));
+
+            let err = block_on(wallets.breakdown(
+                &session("bob", false),
+                "alice",
+                1,
+                &DateRange::new(None, None),
+            ))
+            .unwrap_err();
+
+            assert!(matches!(err, ClientError::Forbidden(_)));
+            assert_eq!(api.started.get(), 0);
+        }
     }
 }

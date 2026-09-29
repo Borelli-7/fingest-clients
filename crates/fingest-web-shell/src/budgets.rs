@@ -4,7 +4,7 @@ use fingest_client_ports::{BudgetFilter, ClientError, ClientEvent};
 use fingest_client_view::{
     NOT_SIGNED_IN, app_context,
     category::{find_category, option_value, picker},
-    describe, format_money, hold, use_event_refresh,
+    describe, format_money, hold, start_action, use_event_refresh,
 };
 use fingest_client_wallets_core::parse_money;
 use fingest_contracts::BudgetOutputDto;
@@ -313,6 +313,7 @@ mod tests {
 #[component]
 fn BudgetRow(budget: BudgetOutputDto) -> Element {
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
 
     let Some(budget_id) = budget.id else {
         return rsx! {
@@ -329,9 +330,13 @@ fn BudgetRow(budget: BudgetOutputDto) -> Element {
 
     let remove = move |_| {
         let context = app_context();
+        let Some((busy_guard, session)) = start_action(busy, error, context.session.read().clone())
+        else {
+            return;
+        };
+
         spawn(async move {
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+            let _busy = busy_guard;
             let login = session.login().to_owned();
 
             if let Err(failure) = context.budgets.delete(&session, &login, budget_id).await {
@@ -354,7 +359,7 @@ fn BudgetRow(budget: BudgetOutputDto) -> Element {
             td { "{format_money(&budget.spent)}" }
             td { "{format_money(&budget.left)}" }
             td { class: "actions",
-                button { class: "link danger", onclick: remove, "Delete" }
+                button { class: "link danger", disabled: busy(), onclick: remove, "Delete" }
             }
         }
     }

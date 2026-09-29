@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use fingest_client_ports::{ClientEvent, NameField};
-use fingest_client_view::{app_context, describe, use_event_refresh};
+use fingest_client_view::{app_context, describe, start_action, use_event_refresh};
 use fingest_contracts::UserDto;
 
 use crate::routes::Route;
@@ -94,6 +94,29 @@ pub fn Users() -> Element {
 #[component]
 fn UserRow(account: UserDto, on_deleted: EventHandler<String>) -> Element {
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
+
+    let remove = {
+        let login = account.login.clone();
+        move |_| {
+            let context = app_context();
+            let Some((busy_guard, session)) =
+                start_action(busy, error, context.session.read().clone())
+            else {
+                return;
+            };
+            let login = login.clone();
+
+            spawn(async move {
+                let _busy = busy_guard;
+
+                match context.users.delete(&session, &login).await {
+                    Ok(()) => on_deleted.call(login),
+                    Err(failure) => error.set(Some(describe(&failure))),
+                }
+            });
+        }
+    };
 
     rsx! {
         tr {
@@ -114,26 +137,7 @@ fn UserRow(account: UserDto, on_deleted: EventHandler<String>) -> Element {
             }
             td { class: "muted", if account.admin { "Admin" } else { "User" } }
             td { class: "actions",
-                button {
-                    class: "link danger",
-                    onclick: {
-                        let login = account.login.clone();
-                        move |_| {
-                            let context = app_context();
-                            let login = login.clone();
-                            spawn(async move {
-                                let session = context.session.read().clone();
-                                let Some(session) = session else { return };
-
-                                match context.users.delete(&session, &login).await {
-                                    Ok(()) => on_deleted.call(login),
-                                    Err(failure) => error.set(Some(describe(&failure))),
-                                }
-                            });
-                        }
-                    },
-                    "Delete"
-                }
+                button { class: "link danger", disabled: busy(), onclick: remove, "Delete" }
                 if let Some(message) = error() {
                     p { class: "error", role: "alert", "{message}" }
                 }
@@ -147,16 +151,20 @@ fn EditableName(login: String, field: NameField, current: Option<String>) -> Ele
     let mut editing = use_signal(|| false);
     let mut draft = use_signal(|| current.clone().unwrap_or_default());
     let mut error = use_signal(|| None::<String>);
+    let busy = use_signal(|| false);
 
     let labelled = login.clone();
     let submit = move |event: FormEvent| {
         event.prevent_default();
         let context = app_context();
+        let Some((busy_guard, session)) = start_action(busy, error, context.session.read().clone())
+        else {
+            return;
+        };
         let login = login.clone();
 
         spawn(async move {
-            let session = context.session.read().clone();
-            let Some(session) = session else { return };
+            let _busy = busy_guard;
 
             match context
                 .users
@@ -189,11 +197,18 @@ fn EditableName(login: String, field: NameField, current: Option<String>) -> Ele
         form { onsubmit: submit,
             input {
                 "aria-label": "{field.label()} for {labelled}",
+                disabled: busy(),
                 value: "{draft}",
                 oninput: move |event| draft.set(event.value()),
             }
-            button { class: "link", r#type: "submit", "Save" }
-            button { class: "link", r#type: "button", onclick: move |_| editing.set(false), "Cancel" }
+            button { class: "link", r#type: "submit", disabled: busy(), "Save" }
+            button {
+                class: "link",
+                r#type: "button",
+                disabled: busy(),
+                onclick: move |_| editing.set(false),
+                "Cancel"
+            }
         }
         if let Some(message) = error() {
             p { class: "error", role: "alert", "{message}" }
