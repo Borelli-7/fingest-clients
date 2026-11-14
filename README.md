@@ -84,6 +84,20 @@ The emulator needs `-gpu host`; a software renderer never paints. Point the app 
 `adb reverse tcp:8080 tcp:8080` — `127.0.0.1` is the only host the generated
 `network_security_config.xml` allows over cleartext, which is why it is the default base URL.
 
+## Copilot quality skills (repo-local)
+
+Repository-local Copilot skills live under `.github/skills/`:
+
+- `fingest-client-performance`
+- `fingest-client-engineering`
+- `fingest-client-security` (procedure only; not an automatic security audit request)
+- `fingest-client-scalability`
+- `fingest-client-readability`
+
+Use them when coordinating focused implementation/review work in this repository. Each skill
+requires scope + evidence (`file:line`), severity/confidence, focused test commands, and a concise
+handoff with task id, revision, changed files, actual commands/results, and blockers.
+
 ## Status
 
 Verified end to end in the browser: login and session restore, categories, users, wallets and
